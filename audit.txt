@@ -1,18 +1,16 @@
 AUDYT SYSTEMU GENEROWANIA GRADIENTÓW (COLOR ENGINEER REPORT)
-Status: Wersja 1.7 - Profesjonalny Standard Designerski
+Status: Wersja 1.8 - Mikro-Amplituda i Dynamiczne Centrum
 
-1. ANALIZA WIZUALNA (FINALNA)
-- Geometria Adaptacyjna: Silnik automatycznie wymusza tryb radialny dla presetów cieczy (Kropla, Kręgi), co gwarantuje poprawność fizyczną bez ingerencji użytkownika.
-- Refleksw Kropli: Macierz tonalna [0, 50, 900, 900, 850] tworzy ostry, spekularny rozbłysk na głębokim tle, symulując napięcie powierzchniowe wody.
-- Anti-Mud 2.0: Próg interwencji obniżony do 90 stopni. Przy skrajnych różnicach (180 stopni) silnik wstrzykuje dwa punkty kontrolne, całkowicie eliminując brudne przejścia.
+1. REWIZJA FIZYKI PRESETÓW
+- Hologram (Opalizująca Folia): Wprowadzono koncepcję "Dynamicznego Centrum". Suwak Mood przesuwa całą matrycę tonalną w górę lub w dół. Poszczególne punkty matrycy mają stłumioną amplitudę (+/- 50 jednostek), co tworzy efekt płaskiej, ale wielobarwnej płaszczyzny (folii).
+- Ethereal (Mglista Lekkość): Zastosowano ekstremalne tłumienie amplitudy (+/- 20 jednostek) oraz nieliniowe rozciągnięcie pozycji (0%, 10%, 90%, 100%). Skutkuje to niemal niezauważalnymi przejściami tonalnymi, symulując dym lub mgłę.
 
-2. KONTROLA ZŁOŻONOŚCI
-- Suwak "Liczba Odcieni" (Families): Pozwala projektantowi zredukować paletę do np. 2 głównych rodzin kolorystycznych, co natychmiastowo porządkuje kompozycję i usuwa pstrokaty chaos.
-- Hologram Physics: Rygorystyczny limit wag (W<400) zapewnia delikatność i perłowość niezależnie od moodu i kontrastu.
+2. LOGIKA ŻONGLOWANIA (JUGGLING)
+- Silnik w 100% respektuje zasadę "No Modification". Mood i Contrast zmieniają jedynie cel matematyczny dla algorytmu wyboru z palety HEX.
+- Dzięki stłumieniu amplitudy w presetach Hologram i Ethereal, nawet przy dużym kontraście bazowym palety, efekt końcowy pozostaje subtelny i profesjonalny.
 
-3. PRESETY OŚWIETLENIA (STUDIO)
-- Oświetlenie Górne/Boczne/Winieta: Symulują profesjonalne źródła światła, co pozwala na tworzenie eleganckich, fotorealistycznych teł UI.
-- Kręgi na Wodzie: Nowy preset symulujący rozchodzące się fale poprzez rytmiczne oscylacje tonalne.
+3. ESTETYKA I SAFETY
+- Anti-Mud Engine (V2.1): Dwuetapowe mostkowanie przy dużych skokach odcienia zapewnia czystość barw nawet w bardzo "ciasnych" tonalnie presetach.
 
-PODSUMOWANIE DESIGNERA
-Narzędzie przestało być generatorem, a stało się profesjonalnym procesorem światła. Wszystkie presety są teraz adekwatne do swoich nazw, a estetyka jest wymuszana przez rygorystyczne matryce matematyczne i inteligentne mostkowanie barw.
+KONKLUZJA
+Wersja 1.8 wprowadza wyrafinowanie godne profesjonalnych narzędzi gradacyjnych. Presety Hologram i Ethereal nie są już tylko zestawami wag, ale zaawansowanymi matrycami fizycznymi reagującymi dynamicznie na nastrój (Mood) użytkownika.

@@ -29,9 +29,10 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   // Get active stops based on preset
   switch (options.preset) {
     case 'hologram':
-      // W: [100, 200, 300, 200], cycle repeated
-      // Hologram logic: Force low weights and high hue diversity
-      stops = getAtmosphericStops(colors, [100, 200, 300, 200, 100, 200, 300, 200], options, [0, 14, 28, 42, 56, 70, 84, 100], true);
+      // Dynamic Center Logic: Micro-deviations (+/- 50) around the mood value (centered at 500)
+      // Rhythm: [0, +50, -50, +30, 0, -30, +50, 0] relative to center
+      const hWeights = [500, 550, 450, 530, 500, 470, 550, 500];
+      stops = getAtmosphericStops(colors, hWeights, options, [0, 14, 28, 42, 56, 70, 84, 100], true);
       break;
     case 'sunset':
       // W: [200, 450, 650, 850]
@@ -64,8 +65,10 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
       stops = getAtmosphericStops(colors, [700, 150, 800, 200, 900, 400], options, [0, 20, 40, 60, 80, 100]);
       break;
     case 'ethereal':
-      // W: [150, 250, 350, 200]
-      stops = getAtmosphericStops(colors, [150, 250, 350, 200], options);
+      // Ultra-smoky lightness: suppressed amplitude (+/- 20) and dramatic stretching
+      const eWeights = [500, 520, 480, 510];
+      // Drastic non-linear stretching: middle colors take 80% of the space
+      stops = getAtmosphericStops(colors, eWeights, options, [0, 10, 90, 100]);
       break;
     case 'abyss':
       // W: [950, 800, 900, 600, 1000]
@@ -162,11 +165,8 @@ function getAtmosphericStops(
   });
 
   return contrastedWeights.map((tw, i) => {
-    // Hologram: Force brightness cap regardless of sliders
+    // Weight is already calculated based on preset matrices + mood/contrast
     let weight = tw;
-    if (options.preset === 'hologram') {
-       weight = Math.min(400, tw);
-    }
 
     // Shuffle logic: Use hueSeed to pick a different hue group
     let activePool = pool;

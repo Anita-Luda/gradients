@@ -8,6 +8,7 @@ export interface GradientOptions {
   mood: number; // 0-1000
   contrast: number; // 0-100
   density: number; // 0-100
+  hueLimit: number; // 1-10
   geometry: Geometry;
   angle: number;
   inverted: boolean;
@@ -28,16 +29,21 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   // Get active stops based on preset
   switch (options.preset) {
     case 'hologram':
-      // W: [100, 150, 250, 350], cycle repeated
-      stops = getAtmosphericStops(colors, [100, 150, 250, 350, 100, 150, 250, 350], options, [0, 15, 30, 45, 60, 75, 85, 100]);
+      // W: [100, 200, 300, 200], cycle repeated
+      // Hologram logic: Force low weights and high hue diversity
+      stops = getAtmosphericStops(colors, [100, 200, 300, 200, 100, 200, 300, 200], options, [0, 14, 28, 42, 56, 70, 84, 100], true);
       break;
     case 'sunset':
       // W: [200, 450, 650, 850]
       stops = getAtmosphericStops(colors, [200, 450, 650, 850], options);
       break;
     case 'reflex':
-      // Matrix: P:0% (W:50), P:8% (W:900), P:30% (W:650), P:100% (W:800)
-      stops = getAtmosphericStops(colors, [50, 900, 650, 800], options, [0, 8, 30, 100]);
+      // Matrix: Specular reflection on deep uniform surface
+      stops = getAtmosphericStops(colors, [0, 50, 900, 900, 850], options, [0, 3, 6, 40, 100]);
+      break;
+    case 'ripples':
+      // Concentric waves
+      stops = getAtmosphericStops(colors, [900, 100, 850, 200, 800, 300, 750], options, [0, 15, 30, 45, 60, 80, 100]);
       break;
     case 'aurora':
       // Matrix: P:0-60% (950), P:68% (400), P:72% (300), P:78% (500), P:85-100% (1000)
@@ -65,6 +71,18 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
       // W: [950, 800, 900, 600, 1000]
       stops = getAtmosphericStops(colors, [950, 800, 900, 600, 1000], options);
       break;
+    case 'light-top':
+      // Soft top light (W: 100 -> 900)
+      stops = getAtmosphericStops(colors, [100, 400, 900], options, [0, 50, 100]);
+      break;
+    case 'light-side':
+      // Contrast side light
+      stops = getAtmosphericStops(colors, [50, 700, 1000], options, [0, 20, 100]);
+      break;
+    case 'vignette':
+      // Central spotlight
+      stops = getAtmosphericStops(colors, [100, 300, 950], options, [0, 40, 100]);
+      break;
     default:
       stops = colors.map((c, i) => ({ color: c.hex, pos: (i / (colors.length - 1 || 1)) * 100 }));
   }
@@ -76,6 +94,12 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   if (options.mirrored) {
     const mirroredStops = [...stops].reverse().map(s => ({ ...s, pos: 100 + (100 - s.pos) }));
     stops = [...stops.map(s => ({ ...s, pos: s.pos / 2 })), ...mirroredStops.map(s => ({ ...s, pos: s.pos / 2 }))];
+  }
+
+  // Aesthetic pass: If user wants a specific geometry for certain presets, force it
+  let geometry = options.geometry;
+  if (options.preset === 'ripples' || options.preset === 'reflex') {
+    geometry = 'radial';
   }
 
   // Handle Mesh separately
@@ -100,9 +124,9 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
 
   const method = 'in oklch ';
 
-  if (options.geometry === 'radial') {
+  if (geometry === 'radial') {
     return `radial-gradient(${method}circle at center, ${stopStr})`;
-  } else if (options.geometry === 'conic') {
+  } else if (geometry === 'conic') {
     return `conic-gradient(${method}from ${options.angle}deg, ${stopStr})`;
   } else {
     return `linear-gradient(${method}${options.angle}deg, ${stopStr})`;
@@ -113,10 +137,15 @@ function getAtmosphericStops(
   pool: ColorData[],
   targetWeights: number[],
   options: GradientOptions,
-  customPos?: number[]
+  customPos?: number[],
+  forceDiversity: boolean = false
 ): Stop[] {
-  const hueGroupsMap = groupHues(pool);
-  const hueGroups = Array.from(hueGroupsMap.values());
+  const allHueGroupsMap = groupHues(pool);
+  const allHueGroups = Array.from(allHueGroupsMap.values());
+
+  // Limit number of hue families used
+  const limit = Math.min(options.hueLimit, allHueGroups.length);
+  const hueGroups = allHueGroups.slice(0, limit);
 
   // Apply Mood shift
   const shiftedWeights = targetWeights.map(w => {
@@ -133,15 +162,22 @@ function getAtmosphericStops(
   });
 
   return contrastedWeights.map((tw, i) => {
+    // Hologram: Force brightness cap regardless of sliders
+    let weight = tw;
+    if (options.preset === 'hologram') {
+       weight = Math.min(400, tw);
+    }
+
     // Shuffle logic: Use hueSeed to pick a different hue group
     let activePool = pool;
     if (hueGroups.length > 0) {
-      const groupIdx = (i + options.hueSeed) % hueGroups.length;
-      activePool = hueGroups[groupIdx];
+      // For presets like hologram, ensure we cycle hues even if pool is small
+      const groupIdx = (i + options.hueSeed) % (forceDiversity ? Math.max(hueGroups.length, 3) : hueGroups.length);
+      activePool = hueGroups[groupIdx % hueGroups.length];
     }
 
     // Fallback logic: Find closest color in activePool
-    const colorHex = findClosestColorWithFallback(activePool, tw);
+    const colorHex = findClosestColorWithFallback(activePool, weight);
 
     let pos = customPos ? customPos[i] : (i / (contrastedWeights.length - 1)) * 100;
 
@@ -204,30 +240,27 @@ function injectAnchorStops(stops: Stop[], pool: ColorData[]): Stop[] {
       const c1 = pool.find(c => c.hex.toLowerCase() === current.color.toLowerCase());
       const c2 = pool.find(c => c.hex.toLowerCase() === next.color.toLowerCase());
       if (c1 && c2 && c1.h !== undefined && c2.h !== undefined) {
-        const hDiff = Math.min(Math.abs(c1.h - c2.h), 360 - Math.abs(c1.h - c2.h));
-        if (hDiff > 120) {
-          // Find the best "bridge" color from the pool to prevent mud.
-          // The bridge color should be as close as possible to the average hue and weight.
-          const targetH = (c1.h + (c2.h > c1.h ? hDiff / 2 : -hDiff / 2) + 360) % 360;
-          const targetW = (c1.weight + c2.weight) / 2;
+        const h1 = c1.h;
+        const h2 = c2.h;
+        const hDiff = Math.min(Math.abs(h1 - h2), 360 - Math.abs(h1 - h2));
+        if (hDiff > 90) {
+          const bridgePoints = hDiff > 180 ? [0.33, 0.66] : [0.5];
 
-          const bridge = pool.reduce((prev, curr) => {
-             if (curr.h === undefined) return prev;
-             const d1 = getScore(prev, targetH, targetW);
-             const d2 = getScore(curr, targetH, targetW);
-             return d2 < d1 ? curr : prev;
+          bridgePoints.forEach(ratio => {
+            const targetH = (h1 + (h2 > h1 ? hDiff * ratio : -hDiff * ratio) + 360) % 360;
+            const targetW = (c1.weight ?? 500) + ((c2.weight ?? 500) - (c1.weight ?? 500)) * ratio;
+
+            const bridge = pool.reduce((prev, curr) => {
+               if (curr.h === undefined) return prev;
+               const d1 = getScore(prev, targetH, targetW);
+               const d2 = getScore(curr, targetH, targetW);
+               return d2 < d1 ? curr : prev;
+            });
+
+            if (bridge && bridge.hex !== c1.hex && bridge.hex !== c2.hex) {
+              result.push({ color: bridge.hex, pos: current.pos + (next.pos - current.pos) * ratio });
+            }
           });
-
-          // Only inject if the bridge is actually different and helps reduce the hue jump
-          if (bridge && bridge.hex !== c1.hex && bridge.hex !== c2.hex) {
-             const dBridge1 = Math.min(Math.abs((bridge.h ?? 0) - c1.h), 360 - Math.abs((bridge.h ?? 0) - c1.h));
-             const dBridge2 = Math.min(Math.abs((bridge.h ?? 0) - c2.h), 360 - Math.abs((bridge.h ?? 0) - c2.h));
-
-             // Ensure the bridge is actually between the two hues
-             if (dBridge1 < hDiff && dBridge2 < hDiff) {
-               result.push({ color: bridge.hex, pos: (current.pos + next.pos) / 2 });
-             }
-          }
         }
       }
     }

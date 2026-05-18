@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Sun, Moon, Eye, Shuffle, RotateCcw, Maximize, Copy, Check } from 'lucide-react';
-import { parseHexList } from './lib/colors';
+import { parseHexList, groupHues } from './lib/colors';
 import { generateGradient } from './lib/engine';
 import type { GradientOptions, Geometry } from './lib/engine';
 
@@ -17,6 +17,7 @@ export default function App() {
     mood: 500,
     contrast: 100,
     density: 50,
+    hueLimit: 5,
     geometry: 'linear',
     angle: 135,
     inverted: false,
@@ -25,6 +26,7 @@ export default function App() {
   });
 
   const colorPool = useMemo(() => parseHexList(hexInput), [hexInput]);
+  const hueGroupsCount = useMemo(() => Array.from(groupHues(colorPool).values()).length, [colorPool]);
 
   const gradientCss = useMemo(() => {
     return generateGradient(colorPool, options);
@@ -91,8 +93,26 @@ export default function App() {
             <option value="chrome">Liquid Chrome</option>
             <option value="ethereal">Ethereal / Mist</option>
             <option value="abyss">Abyss / Deep Sea</option>
+            <option value="light-top">Oświetlenie Górne</option>
+            <option value="light-side">Oświetlenie Boczne</option>
+            <option value="vignette">Winieta / Spotlight</option>
+            <option value="ripples">Kręgi na Wodzie</option>
             <option value="default">Standardowy (Wszystkie)</option>
           </select>
+        </div>
+
+        <div className="control-group">
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <label>Liczba Odcieni (Families)</label>
+            <span>{Math.min(options.hueLimit, hueGroupsCount)} / {hueGroupsCount}</span>
+          </div>
+          <input
+            type="range"
+            min="1"
+            max={Math.max(1, hueGroupsCount)}
+            value={options.hueLimit}
+            onChange={(e) => setOptions({...options, hueLimit: parseInt(e.target.value)})}
+          />
         </div>
 
         <div className="control-group">
@@ -167,7 +187,7 @@ export default function App() {
         </div>
 
         <div style={{ marginTop: 'auto', textAlign: 'center', fontSize: '0.6rem', opacity: 0.3 }}>
-          V1.2 MONOCHROME CORE &bull; OKLCH ENGINE
+          V1.7 DESIGNER CORE &bull; OKLCH ENGINE
         </div>
       </aside>
 

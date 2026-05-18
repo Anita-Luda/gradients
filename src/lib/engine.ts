@@ -57,6 +57,14 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
       // Matrix: 0% (700), 20% (150), 40% (800), 60% (200), 80% (900), 100% (400)
       stops = getAtmosphericStops(colors, [700, 150, 800, 200, 900, 400], options, [0, 20, 40, 60, 80, 100]);
       break;
+    case 'ethereal':
+      // W: [150, 250, 350, 200]
+      stops = getAtmosphericStops(colors, [150, 250, 350, 200], options);
+      break;
+    case 'abyss':
+      // W: [950, 800, 900, 600, 1000]
+      stops = getAtmosphericStops(colors, [950, 800, 900, 600, 1000], options);
+      break;
     default:
       stops = colors.map((c, i) => ({ color: c.hex, pos: (i / (colors.length - 1 || 1)) * 100 }));
   }

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Sun, Moon, Eye, Shuffle, RotateCcw, Maximize } from 'lucide-react';
+import { Sun, Moon, Eye, Shuffle, RotateCcw, Maximize, Copy, Check } from 'lucide-react';
 import { parseHexList } from './lib/colors';
 import { generateGradient } from './lib/engine';
 import type { GradientOptions, Geometry } from './lib/engine';
@@ -11,6 +11,7 @@ export default function App() {
   const [sidebarTheme, setSidebarTheme] = useState<'light' | 'dark'>('dark');
   const [previewBg, setPreviewBg] = useState<'white' | 'black'>('black');
 
+  const [copied, setCopied] = useState(false);
   const [options, setOptions] = useState<GradientOptions>({
     preset: 'sunset',
     mood: 500,
@@ -40,6 +41,12 @@ export default function App() {
       ...prev,
       hueSeed: prev.hueSeed + 1
     }));
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(`background: ${gradientCss};`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -82,6 +89,8 @@ export default function App() {
             <option value="magma">Płynna Magma</option>
             <option value="cyberpunk">Cyberpunk / Neon</option>
             <option value="chrome">Liquid Chrome</option>
+            <option value="ethereal">Ethereal / Mist</option>
+            <option value="abyss">Abyss / Deep Sea</option>
             <option value="default">Standardowy (Wszystkie)</option>
           </select>
         </div>
@@ -147,6 +156,13 @@ export default function App() {
           <button onClick={() => setOptions({...options, mirrored: !options.mirrored})} style={{ gridColumn: 'span 2' }}>
             <Maximize size={14} style={{ marginRight: 4 }} />
             Lustro (Mirror)
+          </button>
+          <button
+            onClick={copyToClipboard}
+            style={{ gridColumn: 'span 2', background: 'var(--text)', color: 'var(--bg)' }}
+          >
+            {copied ? <Check size={14} style={{ marginRight: 4 }} /> : <Copy size={14} style={{ marginRight: 4 }} />}
+            {copied ? 'Skopiowano!' : 'Kopiuj CSS'}
           </button>
         </div>
 

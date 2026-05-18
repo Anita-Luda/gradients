@@ -28,25 +28,34 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   // Get active stops based on preset
   switch (options.preset) {
     case 'hologram':
-      stops = getAtmosphericStops(colors, [100, 200, 300, 400], options);
+      // W: [100, 150, 250, 350], cycle repeated
+      stops = getAtmosphericStops(colors, [100, 150, 250, 350, 100, 150, 250, 350], options, [0, 15, 30, 45, 60, 75, 85, 100]);
       break;
     case 'sunset':
-      stops = getAtmosphericStops(colors, [200, 400, 600, 800], options);
+      // W: [200, 450, 650, 850]
+      stops = getAtmosphericStops(colors, [200, 450, 650, 850], options);
       break;
     case 'reflex':
-      stops = getAtmosphericStops(colors, [50, 800, 950], options);
+      // Matrix: P:0% (W:50), P:8% (W:900), P:30% (W:650), P:100% (W:800)
+      stops = getAtmosphericStops(colors, [50, 900, 650, 800], options, [0, 8, 30, 100]);
       break;
     case 'aurora':
-      stops = getAtmosphericStops(colors, [900, 350, 450, 950], options, [0, 65, 75, 100]);
+      // Matrix: P:0-60% (950), P:68% (400), P:72% (300), P:78% (500), P:85-100% (1000)
+      stops = getAtmosphericStops(colors, [950, 950, 400, 300, 500, 1000, 1000], options, [0, 60, 68, 72, 78, 85, 100]);
       break;
     case 'galaxy':
-      stops = getAtmosphericStops(colors, [950, 300, 950], options);
+      stops = getAtmosphericStops(colors, [950, 300, 400, 950], options);
       break;
     case 'magma':
-      stops = getAtmosphericStops(colors, [800, 150, 900], options);
+      stops = getAtmosphericStops(colors, [900, 700, 200, 800, 950], options);
       break;
     case 'cyberpunk':
-      stops = getAtmosphericStops(colors, [900, 200], options);
+      // Hard stops at 46% and 54%
+      stops = getAtmosphericStops(colors, [950, 200, 200, 1000], options, [0, 46, 54, 100]);
+      break;
+    case 'chrome':
+      // Matrix: 0% (700), 20% (150), 40% (800), 60% (200), 80% (900), 100% (400)
+      stops = getAtmosphericStops(colors, [700, 150, 800, 200, 900, 400], options, [0, 20, 40, 60, 80, 100]);
       break;
     default:
       stops = colors.map((c, i) => ({ color: c.hex, pos: (i / (colors.length - 1 || 1)) * 100 }));
@@ -192,7 +201,7 @@ function injectAnchorStops(stops: Stop[], pool: ColorData[]): Stop[] {
       const c2 = pool.find(c => c.hex.toLowerCase() === next.color.toLowerCase());
       if (c1 && c2 && c1.h !== undefined && c2.h !== undefined) {
         const hDiff = Math.min(Math.abs(c1.h - c2.h), 360 - Math.abs(c1.h - c2.h));
-        if (hDiff > 100) {
+        if (hDiff > 120) {
           const targetH = (c1.h + (c2.h > c1.h ? hDiff / 2 : -hDiff / 2) + 360) % 360;
           const targetW = (c1.weight + c2.weight) / 2;
           const intermediate = pool.reduce((prev, curr) => {

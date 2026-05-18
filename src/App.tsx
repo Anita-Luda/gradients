@@ -81,6 +81,7 @@ export default function App() {
             <option value="galaxy">Galaktyka / Mgławica</option>
             <option value="magma">Płynna Magma</option>
             <option value="cyberpunk">Cyberpunk / Neon</option>
+            <option value="chrome">Liquid Chrome</option>
             <option value="default">Standardowy (Wszystkie)</option>
           </select>
         </div>

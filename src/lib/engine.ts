@@ -51,18 +51,19 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
       stops = getAtmosphericStops(colors, [950, 950, 400, 300, 500, 1000, 1000], options, [0, 60, 68, 72, 78, 85, 100]);
       break;
     case 'galaxy':
-      stops = getAtmosphericStops(colors, [950, 300, 400, 950], options);
+      // Cosmic Depth: 80% void, narrow nebula at 70-75%
+      stops = getAtmosphericStops(colors, [950, 950, 300, 400, 950, 950], options, [0, 65, 70, 75, 80, 100]);
       break;
     case 'magma':
       stops = getAtmosphericStops(colors, [900, 700, 200, 800, 950], options);
       break;
     case 'cyberpunk':
-      // Hard stops at 46% and 54%
-      stops = getAtmosphericStops(colors, [950, 200, 200, 1000], options, [0, 46, 54, 100]);
+      // Neon Glow: Micro-buffer zones for OKLCH glow effect
+      stops = getAtmosphericStops(colors, [950, 950, 200, 200, 1000, 1000], options, [0, 46, 49, 51, 54, 100]);
       break;
     case 'chrome':
-      // Matrix: 0% (700), 20% (150), 40% (800), 60% (200), 80% (900), 100% (400)
-      stops = getAtmosphericStops(colors, [700, 150, 800, 200, 900, 400], options, [0, 20, 40, 60, 80, 100]);
+      // Liquid Chrome: Sharp horizon at 49-51%
+      stops = getAtmosphericStops(colors, [700, 850, 150, 900, 200, 400], options, [0, 49, 49.5, 50.5, 51, 100]);
       break;
     case 'ethereal':
       // Ultra-smoky lightness: suppressed amplitude (+/- 20) and dramatic stretching
@@ -86,8 +87,12 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
       // Central spotlight
       stops = getAtmosphericStops(colors, [100, 300, 950], options, [0, 40, 100]);
       break;
-    default:
-      stops = colors.map((c, i) => ({ color: c.hex, pos: (i / (colors.length - 1 || 1)) * 100 }));
+    default: {
+      // Standard: Map all colors to a linear scale, respecting hue limit
+      const linearWeights = colors.map((_, i) => (i / (colors.length - 1 || 1)) * 1000);
+      stops = getAtmosphericStops(colors, linearWeights, options);
+      break;
+    }
   }
 
   if (options.inverted) {
@@ -107,23 +112,13 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
 
   // Handle Mesh separately
   if (options.geometry === 'mesh') {
-    return generateMesh(stops);
+    return generateMesh(stops, options.hueSeed);
   }
 
   // Intelligent Anchor Stops (Anti-Mud Rule)
-  // Cyberpunk uses hard stops, so we don't inject anchors there to keep it sharp
-  const finalStops = options.preset === 'cyberpunk' ? stops : injectAnchorStops(stops, colors);
+  const finalStops = injectAnchorStops(stops, colors);
 
-  let stopStr = '';
-  if (options.preset === 'cyberpunk') {
-    stopStr = finalStops.map((s, i) => {
-      const next = finalStops[i+1];
-      if (next) return `${s.color} ${s.pos}%, ${next.color} ${s.pos}%`;
-      return `${s.color} ${s.pos}%`;
-    }).join(', ');
-  } else {
-    stopStr = finalStops.map(s => `${s.color} ${s.pos}%`).join(', ');
-  }
+  const stopStr = finalStops.map(s => `${s.color} ${s.pos}%`).join(', ');
 
   const method = 'in oklch ';
 
@@ -181,15 +176,24 @@ function getAtmosphericStops(
 
     let pos = customPos ? customPos[i] : (i / (contrastedWeights.length - 1)) * 100;
 
-    // Apply Density (non-linear warping)
-    if (!customPos) {
-      const p = pos / 100;
-      const factor = (options.density - 50) / 50; // -1 to 1
-      const warpedP = factor > 0
-        ? Math.pow(p, 1 + factor * 2)
-        : 1 - Math.pow(1 - p, 1 + Math.abs(factor) * 2);
-      pos = warpedP * 100;
+    // Apply Density (non-linear warping toward center or edges)
+    const p = pos / 100;
+    const factor = (options.density - 50) / 50; // -1 to 1
+    // Warp relative to 0.5 center
+    let warpedP = p;
+    if (factor > 0) {
+      // Squeeze toward center
+      warpedP = p < 0.5
+        ? 0.5 * Math.pow(p / 0.5, 1 + factor * 3)
+        : 1 - 0.5 * Math.pow((1 - p) / 0.5, 1 + factor * 3);
+    } else if (factor < 0) {
+      // Push toward edges
+      const f = Math.abs(factor);
+      warpedP = p < 0.5
+        ? 0.5 * (1 - Math.pow(1 - (p / 0.5), 1 + f * 3))
+        : 0.5 + 0.5 * Math.pow((p - 0.5) / 0.5, 1 + f * 3);
     }
+    pos = warpedP * 100;
 
     return { color: colorHex, pos };
   });
@@ -220,13 +224,17 @@ function invertColor(hex: string, pool: ColorData[]): string {
   return findClosestColorWithFallback(pool, targetWeight);
 }
 
-function generateMesh(stops: Stop[]): string {
-  const layers = stops.map((s, i) => {
-    const x = 20 + (i * 30) % 60;
-    const y = 20 + Math.floor(i / 2) * 40 % 60;
-    return `radial-gradient(in oklch circle at ${x}% ${y}%, ${s.color} 0%, transparent 60%)`;
+function generateMesh(stops: Stop[], seed: number): string {
+  const shuffledStops = [...stops].sort(() => Math.sin(seed++) - 0.5);
+  const bg = shuffledStops[0]?.color || '#000';
+  const layers = shuffledStops.slice(1).map((s, i) => {
+    // Use seed-based deterministic "randomness" for positions
+    const x = 10 + (Math.abs(Math.sin(seed + i * 13)) * 80);
+    const y = 10 + (Math.abs(Math.cos(seed + i * 17)) * 80);
+    const r = 40 + (Math.abs(Math.sin(seed + i * 23)) * 40);
+    return `radial-gradient(in oklch circle at ${x}% ${y}%, ${s.color} 0%, transparent ${r}%)`;
   });
-  return layers.join(', ');
+  return `${layers.join(', ')}, ${bg}`;
 }
 
 function injectAnchorStops(stops: Stop[], pool: ColorData[]): Stop[] {

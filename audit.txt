@@ -1,16 +1,17 @@
 AUDYT SYSTEMU GENEROWANIA GRADIENTÓW (COLOR ENGINEER REPORT)
-Status: Wersja 1.8 - Mikro-Amplituda i Dynamiczne Centrum
+Status: Wersja 1.9 - Precyzja Optyczna i Kosmiczna Głębia
 
-1. REWIZJA FIZYKI PRESETÓW
-- Hologram (Opalizująca Folia): Wprowadzono koncepcję "Dynamicznego Centrum". Suwak Mood przesuwa całą matrycę tonalną w górę lub w dół. Poszczególne punkty matrycy mają stłumioną amplitudę (+/- 50 jednostek), co tworzy efekt płaskiej, ale wielobarwnej płaszczyzny (folii).
-- Ethereal (Mglista Lekkość): Zastosowano ekstremalne tłumienie amplitudy (+/- 20 jednostek) oraz nieliniowe rozciągnięcie pozycji (0%, 10%, 90%, 100%). Skutkuje to niemal niezauważalnymi przejściami tonalnymi, symulując dym lub mgłę.
+1. REWIZJA MATRYC PRESETÓW
+- Chrome (Liniowy Horyzont): Skoncentrowano wagi skrajne (150 vs 900) w mikro-przedziale 49-51%. Tworzy to iluzję lustrzanego odbicia horyzontu (Liquid Chrome), z płynnymi przejściami na brzegach.
+- Cyberpunk (Neon Glow): Zastąpiono Hard-Stops mikro-strefami buforowymi (46-54%). Dzięki OKLCH, to krótkie przejście generuje efekt optycznego świecenia (halo) na styku neonów.
+- Galaxy (Cosmic Void): Przesunięto jasne wagi mgławicy (300, 400) do wąskiego przedziału 70-75%. 80% gradientu zajmuje teraz głęboka nicość (950), co drastycznie zwiększa poczucie głębi kosmicznej.
 
-2. LOGIKA ŻONGLOWANIA (JUGGLING)
-- Silnik w 100% respektuje zasadę "No Modification". Mood i Contrast zmieniają jedynie cel matematyczny dla algorytmu wyboru z palety HEX.
-- Dzięki stłumieniu amplitudy w presetach Hologram i Ethereal, nawet przy dużym kontraście bazowym palety, efekt końcowy pozostaje subtelny i profesjonalny.
+2. UNIWERSALNA GĘSTOŚĆ (DENSITY 2.0)
+- Suwak gęstości działa teraz na wszystkich presetach (nawet z custom pozycjami). Wykorzystuje funkcję potęgową zakotwiczoną w 50%, co pozwala na ściskanie kolorów do centrum lub ich wypychanie na zewnątrz.
 
-3. ESTETYKA I SAFETY
-- Anti-Mud Engine (V2.1): Dwuetapowe mostkowanie przy dużych skokach odcienia zapewnia czystość barw nawet w bardzo "ciasnych" tonalnie presetach.
+3. ROZSZERZONY STANDARD I MESH
+- Preset "Standard" respektuje teraz suwak "Liczba Odcieni", umożliwiając szybkie tworzenie czystych, liniowych kompozycji monochromatycznych lub dwubarwnych.
+- Tryb Mesh zyskał deterministyczną losowość (seed-based). Kliknięcie "Mieszaj" zamienia kolory miejscami ORAZ przesuwa je w przestrzeni X/Y, tworząc unikalne plamy organiczne.
 
 KONKLUZJA
-Wersja 1.8 wprowadza wyrafinowanie godne profesjonalnych narzędzi gradacyjnych. Presety Hologram i Ethereal nie są już tylko zestawami wag, ale zaawansowanymi matrycami fizycznymi reagującymi dynamicznie na nastrój (Mood) użytkownika.
+Wersja 1.9 eliminuje "płaskość" i "pasiastość" kompozycji. Silnik operuje teraz na mikro-pozycjonowaniu stops, co pozwala na symulowanie zaawansowanych zjawisk optycznych (glow, horizon, void) przy zachowaniu pełnej lekkości kodu CSS.

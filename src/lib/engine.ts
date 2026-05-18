@@ -29,67 +29,60 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   // Get active stops based on preset
   switch (options.preset) {
     case 'hologram':
-      // Dynamic Center Logic: Micro-deviations (+/- 50) around the mood value (centered at 500)
-      // Rhythm: [0, +50, -50, +30, 0, -30, +50, 0] relative to center
-      const hWeights = [500, 550, 450, 530, 500, 470, 550, 500];
-      stops = getAtmosphericStops(colors, hWeights, options, [0, 14, 28, 42, 56, 70, 84, 100], true);
+      // Dynamic Center Logic: Micro-deviations around 250 (range 100-400)
+      // We force a weight filter to ensure only light colors are used for this "pearly" effect.
+      const hWeights = [250, 300, 200, 280, 250, 220, 300, 250];
+      stops = getAtmosphericStops(colors, hWeights, options, [0, 14, 28, 42, 56, 70, 84, 100], true, { min: 0, max: 450 });
       break;
     case 'sunset':
-      // W: [200, 450, 650, 850]
       stops = getAtmosphericStops(colors, [200, 450, 650, 850], options);
       break;
     case 'reflex':
-      // Matrix: Specular reflection on deep uniform surface
       stops = getAtmosphericStops(colors, [0, 50, 900, 900, 850], options, [0, 3, 6, 40, 100]);
       break;
     case 'ripples':
-      // Concentric waves
       stops = getAtmosphericStops(colors, [900, 100, 850, 200, 800, 300, 750], options, [0, 15, 30, 45, 60, 80, 100]);
       break;
     case 'aurora':
-      // Matrix: P:0-60% (950), P:68% (400), P:72% (300), P:78% (500), P:85-100% (1000)
       stops = getAtmosphericStops(colors, [950, 950, 400, 300, 500, 1000, 1000], options, [0, 60, 68, 72, 78, 85, 100]);
       break;
     case 'galaxy':
-      // Cosmic Depth: 80% void, narrow nebula at 70-75%
       stops = getAtmosphericStops(colors, [950, 950, 300, 400, 950, 950], options, [0, 65, 70, 75, 80, 100]);
       break;
     case 'magma':
       stops = getAtmosphericStops(colors, [900, 700, 200, 800, 950], options);
       break;
     case 'cyberpunk':
-      // Neon Glow: Micro-buffer zones for OKLCH glow effect
       stops = getAtmosphericStops(colors, [950, 950, 200, 200, 1000, 1000], options, [0, 46, 49, 51, 54, 100]);
       break;
     case 'chrome':
-      // Liquid Chrome: Sharp horizon at 49-51%
+      // Liquid Chrome: classic horizon
+      stops = getAtmosphericStops(colors, [1000, 900, 100, 50, 800, 400], options, [0, 48, 49.5, 50.5, 52, 100]);
+      break;
+    case 'liquid-metal':
+      // The "cool" one that was previously chrome
       stops = getAtmosphericStops(colors, [700, 850, 150, 900, 200, 400], options, [0, 49, 49.5, 50.5, 51, 100]);
       break;
     case 'ethereal':
-      // Ultra-smoky lightness: suppressed amplitude (+/- 20) and dramatic stretching
       const eWeights = [500, 520, 480, 510];
-      // Drastic non-linear stretching: middle colors take 80% of the space
       stops = getAtmosphericStops(colors, eWeights, options, [0, 10, 90, 100]);
       break;
     case 'abyss':
-      // W: [950, 800, 900, 600, 1000]
       stops = getAtmosphericStops(colors, [950, 800, 900, 600, 1000], options);
       break;
     case 'light-top':
-      // Soft top light (W: 100 -> 900)
       stops = getAtmosphericStops(colors, [100, 400, 900], options, [0, 50, 100]);
       break;
     case 'light-side':
-      // Contrast side light
       stops = getAtmosphericStops(colors, [50, 700, 1000], options, [0, 20, 100]);
       break;
     case 'vignette':
-      // Central spotlight
       stops = getAtmosphericStops(colors, [100, 300, 950], options, [0, 40, 100]);
       break;
     default: {
-      // Standard: Map all colors to a linear scale, respecting hue limit
-      const linearWeights = colors.map((_, i) => (i / (colors.length - 1 || 1)) * 1000);
+      const linearWeights = colors.length > 1
+        ? colors.map((_, i) => (i / (colors.length - 1)) * 1000)
+        : [500];
       stops = getAtmosphericStops(colors, linearWeights, options);
       break;
     }
@@ -104,21 +97,18 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
     stops = [...stops.map(s => ({ ...s, pos: s.pos / 2 })), ...mirroredStops.map(s => ({ ...s, pos: s.pos / 2 }))];
   }
 
-  // Aesthetic pass: If user wants a specific geometry for certain presets, force it
   let geometry = options.geometry;
   if (options.preset === 'ripples' || options.preset === 'reflex') {
     geometry = 'radial';
   }
 
-  // Handle Mesh separately
   if (options.geometry === 'mesh') {
     return generateMesh(stops, options.hueSeed);
   }
 
-  // Intelligent Anchor Stops (Anti-Mud Rule)
   const finalStops = injectAnchorStops(stops, colors);
 
-  const stopStr = finalStops.map(s => `${s.color} ${s.pos}%`).join(', ');
+  const stopStr = finalStops.map(s => `${s.color} ${s.pos.toFixed(2)}%`).join(', ');
 
   const method = 'in oklch ';
 
@@ -131,15 +121,43 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   }
 }
 
+function seededShuffle<T>(array: T[], seed: number): T[] {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.abs(Math.sin(seed + i)) * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 function getAtmosphericStops(
   pool: ColorData[],
   targetWeights: number[],
   options: GradientOptions,
   customPos?: number[],
-  forceDiversity: boolean = false
+  forceDiversity: boolean = false,
+  weightFilter?: { min: number, max: number }
 ): Stop[] {
-  const allHueGroupsMap = groupHues(pool);
-  const allHueGroups = Array.from(allHueGroupsMap.values());
+  // Filter pool if range specified
+  let filteredPool = pool;
+  if (weightFilter) {
+    filteredPool = pool.filter(c => c.weight >= weightFilter.min && c.weight <= weightFilter.max);
+    // Fallback if no colors in range: pick the closest ones
+    if (filteredPool.length === 0) {
+      const mid = (weightFilter.min + weightFilter.max) / 2;
+      const sorted = [...pool].sort((a, b) => Math.abs(a.weight - mid) - Math.abs(b.weight - mid));
+      filteredPool = sorted.slice(0, Math.max(3, Math.floor(pool.length / 3)));
+    }
+  }
+
+  const allHueGroupsMap = groupHues(filteredPool);
+  // Default sort by hue
+  let allHueGroups = Array.from(allHueGroupsMap.values()).sort((a, b) => (a[0].h ?? 0) - (b[0].h ?? 0));
+
+  // Real mixing: Shuffle the hue families based on seed
+  if (options.hueSeed > 0) {
+    allHueGroups = seededShuffle(allHueGroups, options.hueSeed);
+  }
 
   // Limit number of hue families used
   const limit = Math.min(options.hueLimit, allHueGroups.length);
@@ -151,7 +169,7 @@ function getAtmosphericStops(
     return Math.max(0, Math.min(1000, w + shift));
   });
 
-  // Apply Contrast/Dynamics (scaling around the mean)
+  // Apply Contrast/Dynamics
   const mean = shiftedWeights.reduce((a, b) => a + b, 0) / (shiftedWeights.length || 1);
   const contrastFactor = options.contrast / 100;
   const contrastedWeights = shiftedWeights.map(w => {
@@ -160,38 +178,41 @@ function getAtmosphericStops(
   });
 
   return contrastedWeights.map((tw, i) => {
-    // Weight is already calculated based on preset matrices + mood/contrast
     let weight = tw;
-
-    // Shuffle logic: Use hueSeed to pick a different hue group
     let activePool = pool;
+
     if (hueGroups.length > 0) {
-      // For presets like hologram, ensure we cycle hues even if pool is small
-      const groupIdx = (i + options.hueSeed) % (forceDiversity ? Math.max(hueGroups.length, 3) : hueGroups.length);
-      activePool = hueGroups[groupIdx % hueGroups.length];
+      // If shuffle > 0, we can also shuffle the assignment of groups to stops
+      let groupIdx = i % hueGroups.length;
+      if (options.hueSeed > 0) {
+        // Use a more stable but randomized indexing
+        const seed = options.hueSeed + i * 1.5;
+        groupIdx = Math.floor(Math.abs(Math.sin(seed)) * hueGroups.length);
+      }
+      activePool = hueGroups[groupIdx];
     }
 
-    // Fallback logic: Find closest color in activePool
     const colorHex = findClosestColorWithFallback(activePool, weight);
 
     let pos = customPos ? customPos[i] : (i / (contrastedWeights.length - 1)) * 100;
 
-    // Apply Density (non-linear warping toward center or edges)
+    // Apply Density (non-linear warping)
     const p = pos / 100;
     const factor = (options.density - 50) / 50; // -1 to 1
-    // Warp relative to 0.5 center
     let warpedP = p;
     if (factor > 0) {
-      // Squeeze toward center
+      // Squeeze toward center (0.5)
+      const strength = 1 + factor * 5;
       warpedP = p < 0.5
-        ? 0.5 * Math.pow(p / 0.5, 1 + factor * 3)
-        : 1 - 0.5 * Math.pow((1 - p) / 0.5, 1 + factor * 3);
+        ? 0.5 * Math.pow(p / 0.5, strength)
+        : 1 - 0.5 * Math.pow((1 - p) / 0.5, strength);
     } else if (factor < 0) {
       // Push toward edges
       const f = Math.abs(factor);
+      const strength = 1 + f * 5;
       warpedP = p < 0.5
-        ? 0.5 * (1 - Math.pow(1 - (p / 0.5), 1 + f * 3))
-        : 0.5 + 0.5 * Math.pow((p - 0.5) / 0.5, 1 + f * 3);
+        ? 0.5 * (1 - Math.pow(1 - (p / 0.5), strength))
+        : 0.5 + 0.5 * Math.pow((p - 0.5) / 0.5, strength);
     }
     pos = warpedP * 100;
 
@@ -200,8 +221,7 @@ function getAtmosphericStops(
 }
 
 function findClosestColorWithFallback(pool: ColorData[], weight: number): string {
-  // Strict Pool Usage: Only use colors provided by the user.
-  // We do not inject white or black unless they are in the pool.
+  if (pool.length === 0) return '#888';
   return pool.reduce((prev, curr) => {
     return Math.abs(curr.weight - weight) < Math.abs(prev.weight - weight) ? curr : prev;
   }).hex;
@@ -225,14 +245,13 @@ function invertColor(hex: string, pool: ColorData[]): string {
 }
 
 function generateMesh(stops: Stop[], seed: number): string {
-  const shuffledStops = [...stops].sort(() => Math.sin(seed++) - 0.5);
+  const shuffledStops = seededShuffle(stops, seed);
   const bg = shuffledStops[0]?.color || '#000';
   const layers = shuffledStops.slice(1).map((s, i) => {
-    // Use seed-based deterministic "randomness" for positions
     const x = 10 + (Math.abs(Math.sin(seed + i * 13)) * 80);
     const y = 10 + (Math.abs(Math.cos(seed + i * 17)) * 80);
     const r = 40 + (Math.abs(Math.sin(seed + i * 23)) * 40);
-    return `radial-gradient(in oklch circle at ${x}% ${y}%, ${s.color} 0%, transparent ${r}%)`;
+    return `radial-gradient(in oklch circle at ${x.toFixed(1)}% ${y.toFixed(1)}%, ${s.color} 0%, transparent ${r.toFixed(1)}%)`;
   });
   return `${layers.join(', ')}, ${bg}`;
 }
@@ -245,6 +264,10 @@ function injectAnchorStops(stops: Stop[], pool: ColorData[]): Stop[] {
     if (i < stops.length - 1) {
       const current = stops[i];
       const next = stops[i+1];
+
+      // Only inject if there is space
+      if (next.pos - current.pos < 2) continue;
+
       const c1 = pool.find(c => c.hex.toLowerCase() === current.color.toLowerCase());
       const c2 = pool.find(c => c.hex.toLowerCase() === next.color.toLowerCase());
       if (c1 && c2 && c1.h !== undefined && c2.h !== undefined) {

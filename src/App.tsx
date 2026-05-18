@@ -90,7 +90,8 @@ export default function App() {
             <option value="galaxy">Galaktyka / Mgławica</option>
             <option value="magma">Płynna Magma</option>
             <option value="cyberpunk">Cyberpunk / Neon</option>
-            <option value="chrome">Liquid Chrome</option>
+            <option value="chrome">Liquid Chrome (Classic)</option>
+            <option value="liquid-metal">Liquid Metal / Chrome V1</option>
             <option value="ethereal">Ethereal / Mist</option>
             <option value="abyss">Abyss / Deep Sea</option>
             <option value="light-top">Oświetlenie Górne</option>
@@ -187,7 +188,7 @@ export default function App() {
         </div>
 
         <div style={{ marginTop: 'auto', textAlign: 'center', fontSize: '0.6rem', opacity: 0.3 }}>
-          V1.7 DESIGNER CORE &bull; OKLCH ENGINE
+          V1.9 DESIGNER CORE &bull; OKLCH ENGINE
         </div>
       </aside>
 

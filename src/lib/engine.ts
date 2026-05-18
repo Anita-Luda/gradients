@@ -160,15 +160,11 @@ function getAtmosphericStops(
 }
 
 function findClosestColorWithFallback(pool: ColorData[], weight: number): string {
-  const closest = pool.reduce((prev, curr) => {
+  // Strict Pool Usage: Only use colors provided by the user.
+  // We do not inject white or black unless they are in the pool.
+  return pool.reduce((prev, curr) => {
     return Math.abs(curr.weight - weight) < Math.abs(prev.weight - weight) ? curr : prev;
-  });
-
-  // Extreme fallback to preserve light physics
-  if (weight <= 100 && closest.weight > 300) return '#ffffff';
-  if (weight >= 900 && closest.weight < 700) return '#000000';
-
-  return closest.hex;
+  }).hex;
 }
 
 function invertColor(hex: string, pool: ColorData[]): string {

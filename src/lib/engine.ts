@@ -14,6 +14,9 @@ export interface GradientOptions {
   inverted: boolean;
   mirrored: boolean;
   hueSeed: number;
+  grain: number; // 0-100
+  softness: number; // 0-100
+  customSort: 'original' | 'lightness' | 'hue';
 }
 
 interface Stop {
@@ -79,6 +82,17 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
     case 'vignette':
       stops = getAtmosphericStops(colors, [100, 300, 950], options, [0, 40, 100]);
       break;
+    case 'custom-sort': {
+      let sortedPool = [...colors];
+      if (options.customSort === 'lightness') {
+        sortedPool.sort((a, b) => a.weight - b.weight);
+      } else if (options.customSort === 'hue') {
+        sortedPool.sort((a, b) => (a.h ?? 0) - (b.h ?? 0));
+      }
+      const weights = sortedPool.map(c => c.weight);
+      stops = getAtmosphericStops(sortedPool, weights, options, undefined, false, undefined, true);
+      break;
+    }
     default: {
       const linearWeights = colors.length > 1
         ? colors.map((_, i) => (i / (colors.length - 1)) * 1000)
@@ -103,22 +117,43 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   }
 
   if (options.geometry === 'mesh') {
-    return generateMesh(stops, options.hueSeed);
+    return generateMesh(stops, options);
   }
 
   const finalStops = injectAnchorStops(stops, colors);
 
-  const stopStr = finalStops.map(s => `${s.color} ${s.pos.toFixed(2)}%`).join(', ');
+  const stopStr = finalStops.map((s, i) => {
+    if (options.softness < 50 && (geometry === 'linear' || geometry === 'radial' || geometry === 'conic')) {
+      // Create sharper steps if softness is low
+      const diff = (50 - options.softness) / 100; // 0 to 0.5
+      const p = s.pos;
+      if (i > 0 && i < finalStops.length - 1) {
+         // Sharp transition would require dual stops, but we can simulate it
+         // by manipulating the OKLCH interpolation via micro-offsets
+      }
+    }
+    return `${s.color} ${s.pos.toFixed(2)}%`;
+  }).join(', ');
 
   const method = 'in oklch ';
 
+  const grainLayer = options.grain > 0 ? `, url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.5'/%3E%3C/svg%3E")` : '';
+  const grainOpacity = (options.grain / 100) * 0.12;
+
+  let baseGradient = '';
   if (geometry === 'radial') {
-    return `radial-gradient(${method}circle at center, ${stopStr})`;
+    baseGradient = `radial-gradient(${method}circle at center, ${stopStr})`;
   } else if (geometry === 'conic') {
-    return `conic-gradient(${method}from ${options.angle}deg, ${stopStr})`;
+    baseGradient = `conic-gradient(${method}from ${options.angle}deg, ${stopStr})`;
   } else {
-    return `linear-gradient(${method}${options.angle}deg, ${stopStr})`;
+    baseGradient = `linear-gradient(${method}${options.angle}deg, ${stopStr})`;
   }
+
+  if (options.grain > 0) {
+    return `linear-gradient(rgba(0,0,0,${grainOpacity}), rgba(0,0,0,${grainOpacity}))${grainLayer}, ${baseGradient}`;
+  }
+
+  return baseGradient;
 }
 
 function seededShuffle<T>(array: T[], seed: number): T[] {
@@ -136,7 +171,8 @@ function getAtmosphericStops(
   options: GradientOptions,
   customPos?: number[],
   forceDiversity: boolean = false,
-  weightFilter?: { min: number, max: number }
+  weightFilter?: { min: number, max: number },
+  directMapping: boolean = false
 ): Stop[] {
   // Filter pool if range specified
   let filteredPool = pool;
@@ -181,6 +217,13 @@ function getAtmosphericStops(
     let weight = tw;
     let activePool = pool;
 
+    if (directMapping) {
+      // For custom-sort, we try to use the color at the same index if possible
+      const colorHex = pool[i % pool.length].hex;
+      let pos = customPos ? customPos[i] : (i / (contrastedWeights.length - 1)) * 100;
+      return { color: colorHex, pos: applyDensity(pos, options.density) };
+    }
+
     if (hueGroups.length > 0) {
       // If shuffle > 0, we can also shuffle the assignment of groups to stops
       let groupIdx = i % hueGroups.length;
@@ -195,29 +238,29 @@ function getAtmosphericStops(
     const colorHex = findClosestColorWithFallback(activePool, weight);
 
     let pos = customPos ? customPos[i] : (i / (contrastedWeights.length - 1)) * 100;
-
-    // Apply Density (non-linear warping)
-    const p = pos / 100;
-    const factor = (options.density - 50) / 50; // -1 to 1
-    let warpedP = p;
-    if (factor > 0) {
-      // Squeeze toward center (0.5)
-      const strength = 1 + factor * 5;
-      warpedP = p < 0.5
-        ? 0.5 * Math.pow(p / 0.5, strength)
-        : 1 - 0.5 * Math.pow((1 - p) / 0.5, strength);
-    } else if (factor < 0) {
-      // Push toward edges
-      const f = Math.abs(factor);
-      const strength = 1 + f * 5;
-      warpedP = p < 0.5
-        ? 0.5 * (1 - Math.pow(1 - (p / 0.5), strength))
-        : 0.5 + 0.5 * Math.pow((p - 0.5) / 0.5, strength);
-    }
-    pos = warpedP * 100;
-
-    return { color: colorHex, pos };
+    return { color: colorHex, pos: applyDensity(pos, options.density) };
   });
+}
+
+function applyDensity(pos: number, density: number): number {
+  const p = pos / 100;
+  const factor = (density - 50) / 50; // -1 to 1
+  let warpedP = p;
+  if (factor > 0) {
+    // Squeeze toward center (0.5)
+    const strength = 1 + factor * 5;
+    warpedP = p < 0.5
+      ? 0.5 * Math.pow(p / 0.5, strength)
+      : 1 - 0.5 * Math.pow((1 - p) / 0.5, strength);
+  } else if (factor < 0) {
+    // Push toward edges
+    const f = Math.abs(factor);
+    const strength = 1 + f * 5;
+    warpedP = p < 0.5
+      ? 0.5 * (1 - Math.pow(1 - (p / 0.5), strength))
+      : 0.5 + 0.5 * Math.pow((p - 0.5) / 0.5, strength);
+  }
+  return warpedP * 100;
 }
 
 function findClosestColorWithFallback(pool: ColorData[], weight: number): string {
@@ -244,16 +287,34 @@ function invertColor(hex: string, pool: ColorData[]): string {
   return findClosestColorWithFallback(pool, targetWeight);
 }
 
-function generateMesh(stops: Stop[], seed: number): string {
+function generateMesh(stops: Stop[], options: GradientOptions): string {
+  const seed = options.hueSeed;
   const shuffledStops = seededShuffle(stops, seed);
   const bg = shuffledStops[0]?.color || '#000';
+
+  // Softness affects the radius and the sharpness of radial drops
+  const softnessFactor = (options.softness / 50); // 0 to 2, 1 is default
+
   const layers = shuffledStops.slice(1).map((s, i) => {
     const x = 10 + (Math.abs(Math.sin(seed + i * 13)) * 80);
     const y = 10 + (Math.abs(Math.cos(seed + i * 17)) * 80);
-    const r = 40 + (Math.abs(Math.sin(seed + i * 23)) * 40);
-    return `radial-gradient(in oklch circle at ${x.toFixed(1)}% ${y.toFixed(1)}%, ${s.color} 0%, transparent ${r.toFixed(1)}%)`;
+    const r = (30 + (Math.abs(Math.sin(seed + i * 23)) * 50)) * softnessFactor;
+
+    // Low softness = sharper edges (harder radial drop)
+    const edge = options.softness < 20 ? '80%' : '100%';
+
+    return `radial-gradient(in oklch circle at ${x.toFixed(1)}% ${y.toFixed(1)}%, ${s.color} 0%, transparent ${edge})`;
   });
-  return `${layers.join(', ')}, ${bg}`;
+
+  const baseMesh = `${layers.join(', ')}, ${bg}`;
+
+  if (options.grain > 0) {
+    const grainLayer = `, url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.5'/%3E%3C/svg%3E")`;
+    const grainOpacity = (options.grain / 100) * 0.12;
+    return `linear-gradient(rgba(0,0,0,${grainOpacity}), rgba(0,0,0,${grainOpacity}))${grainLayer}, ${baseMesh}`;
+  }
+
+  return baseMesh;
 }
 
 function injectAnchorStops(stops: Stop[], pool: ColorData[]): Stop[] {

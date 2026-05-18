@@ -69,16 +69,37 @@ h1 {
   font-size: 1.2rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  margin: 0;
+  margin: 0 0 10px 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(128,128,128,0.2);
+}
+
+.sidebar-section:last-of-type {
+  border-bottom: none;
+}
+
+.section-title {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  margin-bottom: -4px;
+}
+
 .control-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 label {
@@ -159,4 +180,55 @@ button:hover {
 .geometry-tabs button.active {
   background: var(--accent);
   color: #fff;
+}
+
+/* Palette Inspector */
+.palette-inspector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.palette-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid rgba(128,128,128,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: bold;
+  position: relative;
+  cursor: help;
+}
+
+.palette-swatch span {
+  display: none;
+  position: absolute;
+  top: -20px;
+  background: #333;
+  color: #fff;
+  padding: 2px 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.palette-swatch:hover span {
+  display: block;
+}
+
+/* Custom Scrollbar */
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(128,128,128,0.3);
+  border-radius: 2px;
 }

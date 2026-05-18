@@ -206,16 +206,27 @@ function injectAnchorStops(stops: Stop[], pool: ColorData[]): Stop[] {
       if (c1 && c2 && c1.h !== undefined && c2.h !== undefined) {
         const hDiff = Math.min(Math.abs(c1.h - c2.h), 360 - Math.abs(c1.h - c2.h));
         if (hDiff > 120) {
+          // Find the best "bridge" color from the pool to prevent mud.
+          // The bridge color should be as close as possible to the average hue and weight.
           const targetH = (c1.h + (c2.h > c1.h ? hDiff / 2 : -hDiff / 2) + 360) % 360;
           const targetW = (c1.weight + c2.weight) / 2;
-          const intermediate = pool.reduce((prev, curr) => {
+
+          const bridge = pool.reduce((prev, curr) => {
              if (curr.h === undefined) return prev;
              const d1 = getScore(prev, targetH, targetW);
              const d2 = getScore(curr, targetH, targetW);
              return d2 < d1 ? curr : prev;
           });
-          if (intermediate && intermediate.hex !== c1.hex && intermediate.hex !== c2.hex) {
-            result.push({ color: intermediate.hex, pos: (current.pos + next.pos) / 2 });
+
+          // Only inject if the bridge is actually different and helps reduce the hue jump
+          if (bridge && bridge.hex !== c1.hex && bridge.hex !== c2.hex) {
+             const dBridge1 = Math.min(Math.abs((bridge.h ?? 0) - c1.h), 360 - Math.abs((bridge.h ?? 0) - c1.h));
+             const dBridge2 = Math.min(Math.abs((bridge.h ?? 0) - c2.h), 360 - Math.abs((bridge.h ?? 0) - c2.h));
+
+             // Ensure the bridge is actually between the two hues
+             if (dBridge1 < hDiff && dBridge2 < hDiff) {
+               result.push({ color: bridge.hex, pos: (current.pos + next.pos) / 2 });
+             }
           }
         }
       }

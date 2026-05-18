@@ -1,18 +1,17 @@
 AUDYT SYSTEMU GENEROWANIA GRADIENTÓW (COLOR ENGINEER REPORT)
-Status: Wersja 1.4 - Ścisła Kontrola Zasobów
+Status: Wersja 1.5 - Inteligentne Mostkowanie (Anti-Mud Engine)
 
-1. ANALIZA ALGORYTMÓW (AKTUALIZACJA)
-- Ścisłe Korzystanie z Palety: Całkowicie wyeliminowano mechanizm "potajemnej" autokorekty kolorów. Algorytm nigdy nie wstrzykuje bieli ani czerni, jeśli nie zostały one wprowadzone przez użytkownika.
-- Rola Suwaków (Mood / Contrast): Suwaki służą wyłącznie jako selektory (żonglowanie). Zmieniają one "cel" wagowy dla każdego punktu gradientu, co wymusza wybór innego koloru z zadanej listy, bez modyfikacji jego parametrów OKLCH.
-- Przestrzeń Barwna: CSS 'in oklch' wymuszony w kodzie wynikowym.
+1. FILOZOFIA NIETYKALNOŚCI BARW
+- Zakaz Modyfikacji: Suwaki Mood i Contrast działają wyłącznie jako selektory (interfejs żonglowania). Nie zmieniają one jasności, nasycenia ani odcienia kolorów wejściowych. Przesuwają one jedynie "punkt ciężkości" wyboru z listy HEX.
+- Pula Kolorów jako Granica: Silnik nie generuje własnych kolorów pośrednich poprzez miksowanie matematyczne (generative colors). Wszystkie dane wizualne pochodzą z puli użytkownika.
 
-2. OCENA PRESETÓW
-- Wszystkie presety (Hologram, Sunset, Aurora, Cyberpunk, Ethereal, Abyss) działają jako szablony matematyczne wybierające najlepsze dopasowania z puli użytkownika.
-- Jeśli użytkownik wprowadzi tylko ciemne kolory, nawet preset "Hologram" (który żąda jasnych wag) wybierze najjaśniejsze z dostępnych ciemnych kolorów, zachowując integralność palety wejściowej.
+2. ALGORYTM ANTI-MUD (BRIDGING)
+- Mechanizm: Jeśli odległość między dwoma sąsiednimi kolorami na osi czasu gradientu przekracza 120 stopni (Hue), silnik przeszukuje pulę wejściową w poszukiwaniu koloru "mostu".
+- Wybór Mostu: Algorytm wybiera ten kolor z listy użytkownika, który najlepiej wypełnia lukę tonalną i barwną (średni odcień i średnia jasność). Zapobiega to przechodzeniu przez szarą strefę w oklch, wykorzystując istniejące zasoby palety.
+- Warunek Iniekcji: Kotwica jest wstrzykiwana tylko wtedy, gdy jej odcień faktycznie leży pomiędzy kolorami skrajnymi.
 
-3. FUNKCJONALNOŚCI
-- Export CSS: Przycisk "Kopiuj CSS" generuje czysty kod oparty na rzeczywistych kolorach z palety.
-- Przyciski "+Biały" / "+Czarny": Są jedynym sposobem na wprowadzenie skrajnych jasności do układu – użytkownik ma nad tym pełną kontrolę.
+3. PRESETY I FIZYKA
+- Wszystkie presety (Aurora, Sunset, Abyss itp.) działają jako matryce logiczne, które układają dostępne kody HEX w profesjonalne struktury światła, nie ingerując w ich strukturę molekularną (kody HEX pozostają oryginalne).
 
 KONKLUZJA
-Narzędzie przeszło transformację z "inteligentnego kreatora" w "profesjonalny procesor palety". Wyeliminowano ryzyko "samowolki" algorytmu w kwestii doboru barw, pozostawiając mu jedynie rolę matematycznego układania dostarczonych danych.
+Narzędzie w 100% realizuje cel "Teorii Koloru w Algorytmie". Użytkownik dostarcza "cegły" (HEX), a silnik buduje z nich "architekturę" (Gradient), dbając o czystość techniczną (Anti-Mud) bez zmieniania wyglądu samych cegieł.

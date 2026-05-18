@@ -1,17 +1,17 @@
 AUDYT SYSTEMU GENEROWANIA GRADIENTÓW (COLOR ENGINEER REPORT)
-Status: Wersja 1.5 - Inteligentne Mostkowanie (Anti-Mud Engine)
+Status: Wersja 1.6 - Kontrola Złożoności i Fizyki
 
-1. FILOZOFIA NIETYKALNOŚCI BARW
-- Zakaz Modyfikacji: Suwaki Mood i Contrast działają wyłącznie jako selektory (interfejs żonglowania). Nie zmieniają one jasności, nasycenia ani odcienia kolorów wejściowych. Przesuwają one jedynie "punkt ciężkości" wyboru z listy HEX.
-- Pula Kolorów jako Granica: Silnik nie generuje własnych kolorów pośrednich poprzez miksowanie matematyczne (generative colors). Wszystkie dane wizualne pochodzą z puli użytkownika.
+1. ANALIZA ALGORYTMÓW (AKTUALIZACJA)
+- Kontrola Złożoności (Hue Limit): Wprowadzono suwak "Liczba Odcieni", który pozwala ograniczyć silnik do korzystania tylko z X pierwszych rodzin kolorystycznych (Hues) wykrytych w palecie. Zapobiega to "pstrokaciznie" przy bogatych zestawach HEX.
+- Inteligentna Grupa Hues: Grupowanie zostało zacieśnione do 25 stopni, co pozwala precyzyjnie odróżnić np. błękit od cyjanu jako osobne rodziny.
 
-2. ALGORYTM ANTI-MUD (BRIDGING)
-- Mechanizm: Jeśli odległość między dwoma sąsiednimi kolorami na osi czasu gradientu przekracza 120 stopni (Hue), silnik przeszukuje pulę wejściową w poszukiwaniu koloru "mostu".
-- Wybór Mostu: Algorytm wybiera ten kolor z listy użytkownika, który najlepiej wypełnia lukę tonalną i barwną (średni odcień i średnia jasność). Zapobiega to przechodzeniu przez szarą strefę w oklch, wykorzystując istniejące zasoby palety.
-- Warunek Iniekcji: Kotwica jest wstrzykiwana tylko wtedy, gdy jej odcień faktycznie leży pomiędzy kolorami skrajnymi.
+2. OPTYMALIZACJA PRESETÓW
+- Hologram (Fizyka Perłowa): Wprowadzono bezwzględny limit jasności (W < 400). Nawet przy skrajnych ustawieniach suwaków, preset ten zachowuje swój perłowy charakter, wybierając wyłącznie najjaśniejsze tony. Wymuszono też rotację odcieni, by zapewnić efekt tęczy nawet przy małych paletach.
+- Lighting Presets: Dodano 3 nowe matryce: Oświetlenie Górne, Boczne oraz Winietę, symulujące profesjonalne studio fotograficzne.
 
-3. PRESETY I FIZYKA
-- Wszystkie presety (Aurora, Sunset, Abyss itp.) działają jako matryce logiczne, które układają dostępne kody HEX w profesjonalne struktury światła, nie ingerując w ich strukturę molekularną (kody HEX pozostają oryginalne).
+3. ESTETYKA (ANTI-PSTROKATOŚĆ)
+- Silnik lepiej radzi sobie z małą liczbą kolorów bazowych dzięki rotacji rodzin (Force Diversity) w określonych presetach.
+- Suwak Gęstości pozwala na wygładzenie przejść (Ease-In-Out) lub ich drastyczne zaostrzenie.
 
 KONKLUZJA
-Narzędzie w 100% realizuje cel "Teorii Koloru w Algorytmie". Użytkownik dostarcza "cegły" (HEX), a silnik buduje z nich "architekturę" (Gradient), dbając o czystość techniczną (Anti-Mud) bez zmieniania wyglądu samych cegieł.
+Wersja 1.6 rozwiązuje problem braku kontroli nad "ilością koloru w kolorze". Użytkownik może teraz sterować nie tylko jasnością i kontrastem, ale też stopniem skomplikowania barwnego całej kompozycji.

@@ -1,13 +1,14 @@
 import { useState, useMemo } from 'react';
 import { Sun, Moon, Eye, Shuffle, RotateCcw, Maximize, Copy, Check } from 'lucide-react';
 import { parseHexList, groupHues } from './lib/colors';
-import { generateGradient } from './lib/engine';
+import { generateGradient, PRESET_DEFAULTS } from './lib/engine';
 import type { GradientOptions, Geometry } from './lib/engine';
 
 const DEFAULT_HEX = '#f94144, #f3722c, #f8961e, #f9844a, #f9c74f, #90be6d, #43aa8b, #4d908e, #577590, #277da1';
 
 export default function App() {
   const [hexInput, setHexInput] = useState(DEFAULT_HEX);
+  const [disabledHexes, setDisabledHexes] = useState<Set<string>>(new Set());
   const [sidebarTheme, setSidebarTheme] = useState<'light' | 'dark'>('dark');
   const [previewBg, setPreviewBg] = useState<'white' | 'black'>('black');
 
@@ -28,12 +29,22 @@ export default function App() {
     customSort: 'original'
   });
 
-  const colorPool = useMemo(() => parseHexList(hexInput), [hexInput]);
+  const allColors = useMemo(() => parseHexList(hexInput), [hexInput]);
+  const colorPool = useMemo(() => allColors.filter(c => !disabledHexes.has(c.hex)), [allColors, disabledHexes]);
   const hueGroupsCount = useMemo(() => Array.from(groupHues(colorPool).values()).length, [colorPool]);
 
-  const gradientCss = useMemo(() => {
+  const { css: gradientCss, usedColors } = useMemo(() => {
     return generateGradient(colorPool, options);
   }, [colorPool, options]);
+
+  const toggleColor = (hex: string) => {
+    setDisabledHexes(prev => {
+      const next = new Set(prev);
+      if (next.has(hex)) next.delete(hex);
+      else next.add(hex);
+      return next;
+    });
+  };
 
   const addColor = (hex: string) => {
     const clean = hexInput.trim();
@@ -59,7 +70,7 @@ export default function App() {
       <aside className={`sidebar ${sidebarTheme}`}>
         <h1>
           Gradient Engine
-          <button className="icon-button" onClick={() => setSidebarTheme(t => t === 'light' ? 'dark' : 'light')}>
+          <button className="icon-button" onClick={() => setSidebarTheme(t => t === 'light' ? 'dark' : 'light')} aria-label="Toggle Sidebar Theme">
             {sidebarTheme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
         </h1>
@@ -81,16 +92,23 @@ export default function App() {
               <button onClick={() => addColor('#000000')}>+ Czarny</button>
             </div>
             <div className="palette-inspector">
-              {colorPool.map((c, i) => (
-                <div
-                  key={i}
-                  className="palette-swatch"
-                  style={{ background: c.hex, color: c.weight > 500 ? '#fff' : '#000' }}
-                >
-                  {Math.round(c.weight / 10)}
-                  <span>{c.hex.toUpperCase()} (W:{c.weight})</span>
-                </div>
-              ))}
+              {allColors.map((c, i) => {
+                const isDisabled = disabledHexes.has(c.hex);
+                const isUsed = usedColors.has(c.hex.toLowerCase());
+                return (
+                  <div
+                    key={i}
+                    className={`palette-swatch ${isDisabled ? 'disabled' : ''} ${isUsed ? 'active' : ''}`}
+                    style={{ background: c.hex, color: c.weight > 500 ? '#fff' : '#000' }}
+                    onClick={() => toggleColor(c.hex)}
+                    title={isDisabled ? "Kliknij aby włączyć" : (isUsed ? "Używany w gradiencie" : "Nieużywany (poza zakresem)")}
+                  >
+                    {Math.round(c.weight / 10)}
+                    <span className="swatch-label">{c.hex.toUpperCase()} (W:{c.weight})</span>
+                    {!isDisabled && isUsed && <div className="usage-indicator" />}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -101,7 +119,14 @@ export default function App() {
             <label>Preset</label>
             <select
               value={options.preset}
-              onChange={(e) => setOptions({...options, preset: e.target.value})}
+              onChange={(e) => {
+                const preset = e.target.value;
+                setOptions(prev => ({
+                  ...prev,
+                  preset,
+                  ...PRESET_DEFAULTS[preset]
+                }));
+              }}
             >
               <option value="hologram">Hologram / Opal</option>
               <option value="sunset">Zachód Słońca</option>
@@ -137,35 +162,41 @@ export default function App() {
             </div>
           )}
 
-          <div className="control-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <label>Jasność (Mood)</label>
-              <span>{options.mood}</span>
+          {options.preset !== 'custom-sort' && options.preset !== 'default' && (
+            <div className="control-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <label>Jasność (Mood)</label>
+                <span>{options.mood}</span>
+              </div>
+              <input type="range" min="0" max="1000" value={options.mood} onChange={(e) => setOptions({...options, mood: parseInt(e.target.value)})} />
             </div>
-            <input type="range" min="0" max="1000" value={options.mood} onChange={(e) => setOptions({...options, mood: parseInt(e.target.value)})} />
-          </div>
+          )}
 
-          <div className="control-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <label>Dynamika / Kontrast</label>
-              <span>{options.contrast}%</span>
+          {options.preset !== 'custom-sort' && (
+            <div className="control-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <label>Dynamika / Kontrast</label>
+                <span>{options.contrast}%</span>
+              </div>
+              <input type="range" min="0" max="100" value={options.contrast} onChange={(e) => setOptions({...options, contrast: parseInt(e.target.value)})} />
             </div>
-            <input type="range" min="0" max="100" value={options.contrast} onChange={(e) => setOptions({...options, contrast: parseInt(e.target.value)})} />
-          </div>
+          )}
 
-          <div className="control-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <label>Limit Odcieni</label>
-              <span>{Math.min(options.hueLimit, hueGroupsCount)} / {hueGroupsCount}</span>
+          {hueGroupsCount > 1 && options.preset !== 'custom-sort' && (
+            <div className="control-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <label>Limit Odcieni</label>
+                <span>{Math.min(options.hueLimit, hueGroupsCount)} / {hueGroupsCount}</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max={Math.max(1, hueGroupsCount)}
+                value={options.hueLimit}
+                onChange={(e) => setOptions({...options, hueLimit: parseInt(e.target.value)})}
+              />
             </div>
-            <input
-              type="range"
-              min="1"
-              max={Math.max(1, hueGroupsCount)}
-              value={options.hueLimit}
-              onChange={(e) => setOptions({...options, hueLimit: parseInt(e.target.value)})}
-            />
-          </div>
+          )}
         </section>
 
         <section className="sidebar-section">
@@ -206,7 +237,7 @@ export default function App() {
                   className={options.geometry === g ? 'active' : ''}
                   onClick={() => setOptions({...options, geometry: g})}
                 >
-                  {g}
+                  {g === 'linear' ? 'Liniowy' : g === 'radial' ? 'Radialny' : g === 'conic' ? 'Stożkowy' : 'Mesh'}
                 </button>
               ))}
             </div>
@@ -259,6 +290,7 @@ export default function App() {
           className="preview-toggle"
           onClick={() => setPreviewBg(b => b === 'white' ? 'black' : 'white')}
           title="Przełącz tło podglądu"
+          aria-label="Toggle Preview Background"
         >
           <Eye size={20} color={previewBg === 'white' ? '#000' : '#fff'} />
         </button>

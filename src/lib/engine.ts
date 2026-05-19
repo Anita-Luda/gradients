@@ -19,15 +19,39 @@ export interface GradientOptions {
   customSort: 'original' | 'lightness' | 'hue';
 }
 
+export const PRESET_DEFAULTS: Record<string, Partial<GradientOptions>> = {
+  hologram: { mood: 500, contrast: 60, density: 40, softness: 80, hueLimit: 8 },
+  sunset: { mood: 500, contrast: 100, density: 50, softness: 50, hueLimit: 5 },
+  reflex: { mood: 400, contrast: 100, density: 70, softness: 30, geometry: 'radial' },
+  ripples: { mood: 500, contrast: 100, density: 60, softness: 20, geometry: 'radial' },
+  aurora: { mood: 600, contrast: 100, density: 80, softness: 90, hueLimit: 3 },
+  galaxy: { mood: 700, contrast: 100, density: 90, softness: 95, hueLimit: 4 },
+  magma: { mood: 800, contrast: 100, density: 40, softness: 40, hueLimit: 2 },
+  cyberpunk: { mood: 500, contrast: 100, density: 50, softness: 10, hueLimit: 2 },
+  chrome: { mood: 500, contrast: 100, density: 50, softness: 5, angle: 180 },
+  'liquid-metal': { mood: 500, contrast: 100, density: 50, softness: 40 },
+  ethereal: { mood: 400, contrast: 30, density: 20, softness: 100, hueLimit: 10 },
+  abyss: { mood: 900, contrast: 80, density: 60, softness: 70 },
+  'light-top': { mood: 500, contrast: 100, density: 50, softness: 80, geometry: 'linear', angle: 180 },
+  'light-side': { mood: 500, contrast: 100, density: 50, softness: 80, geometry: 'linear', angle: 90 },
+  vignette: { mood: 500, contrast: 100, density: 50, softness: 90, geometry: 'radial' },
+  'custom-sort': { mood: 500, contrast: 100, density: 50, softness: 50 },
+  default: { mood: 500, contrast: 100, density: 50, softness: 50 }
+};
+
 interface Stop {
   color: string;
   pos: number; // 0-100
 }
 
-export function generateGradient(colors: ColorData[], options: GradientOptions): string {
-  if (colors.length === 0) return 'linear-gradient(to right, #333, #333)';
+export function generateGradient(colors: ColorData[], options: GradientOptions): { css: string, usedColors: Set<string> } {
+  if (colors.length === 0) return {
+    css: 'linear-gradient(to right, #333, #333)',
+    usedColors: new Set()
+  };
 
   let stops: Stop[] = [];
+  const usedColors = new Set<string>();
 
   // Get active stops based on preset
   switch (options.preset) {
@@ -89,15 +113,30 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
       } else if (options.customSort === 'hue') {
         sortedPool.sort((a, b) => (a.h ?? 0) - (b.h ?? 0));
       }
+
+      const maxStops = 32;
+      if (sortedPool.length > maxStops) {
+        const step = (sortedPool.length - 1) / (maxStops - 1);
+        sortedPool = Array.from({ length: maxStops }, (_, i) => sortedPool[Math.round(i * step)]);
+      }
+
       const weights = sortedPool.map(c => c.weight);
       stops = getAtmosphericStops(sortedPool, weights, options, undefined, false, undefined, true);
       break;
     }
     default: {
-      const linearWeights = colors.length > 1
-        ? colors.map((_, i) => (i / (colors.length - 1)) * 1000)
-        : [500];
-      stops = getAtmosphericStops(colors, linearWeights, options);
+      // For Standard, if we have many colors, we want to use them all.
+      // But CSS gradients with 200 stops are slow and can look "jittery".
+      // We'll sample the pool to a max of 24 stops if it's huge, otherwise use all.
+      const maxStops = 24;
+      let targetColors = colors;
+      if (colors.length > maxStops) {
+         const step = (colors.length - 1) / (maxStops - 1);
+         targetColors = Array.from({ length: maxStops }, (_, i) => colors[Math.round(i * step)]);
+      }
+
+      const linearWeights = targetColors.map((_, i) => (i / (targetColors.length - 1)) * 1000);
+      stops = getAtmosphericStops(targetColors, linearWeights, options, undefined, false, undefined, true);
       break;
     }
   }
@@ -117,19 +156,34 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   }
 
   if (options.geometry === 'mesh') {
-    return generateMesh(stops, options);
+    const meshCss = generateMesh(stops, options);
+    stops.forEach(s => usedColors.add(s.color.toLowerCase()));
+    return { css: meshCss, usedColors };
   }
 
   const finalStops = injectAnchorStops(stops, colors);
+  finalStops.forEach(s => usedColors.add(s.color.toLowerCase()));
 
   const stopStr = finalStops.map((s, i) => {
     if (options.softness < 50 && (geometry === 'linear' || geometry === 'radial' || geometry === 'conic')) {
-      // Create sharper steps if softness is low
-      const diff = (50 - options.softness) / 100; // 0 to 0.5
-      const p = s.pos;
-      if (i > 0 && i < finalStops.length - 1) {
-         // Sharp transition would require dual stops, but we can simulate it
-         // by manipulating the OKLCH interpolation via micro-offsets
+      const prev = finalStops[i - 1];
+      const next = finalStops[i + 1];
+      const factor = 1 - (options.softness / 50); // 0 to 1
+
+      let startPos = s.pos;
+      let endPos = s.pos;
+
+      if (prev) {
+        const gap = s.pos - prev.pos;
+        startPos = s.pos - (gap / 2) * factor;
+      }
+      if (next) {
+        const gap = next.pos - s.pos;
+        endPos = s.pos + (gap / 2) * factor;
+      }
+
+      if (Math.abs(startPos - endPos) > 0.01) {
+        return `${s.color} ${startPos.toFixed(2)}% ${endPos.toFixed(2)}%`;
       }
     }
     return `${s.color} ${s.pos.toFixed(2)}%`;
@@ -150,10 +204,13 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   }
 
   if (options.grain > 0) {
-    return `linear-gradient(rgba(0,0,0,${grainOpacity}), rgba(0,0,0,${grainOpacity}))${grainLayer}, ${baseGradient}`;
+    return {
+      css: `linear-gradient(rgba(0,0,0,${grainOpacity}), rgba(0,0,0,${grainOpacity}))${grainLayer}, ${baseGradient}`,
+      usedColors
+    };
   }
 
-  return baseGradient;
+  return { css: baseGradient, usedColors };
 }
 
 function seededShuffle<T>(array: T[], seed: number): T[] {
@@ -213,6 +270,7 @@ function getAtmosphericStops(
     return Math.max(0, Math.min(1000, newVal));
   });
 
+  // Calculate used indices to track them in usedColors
   return contrastedWeights.map((tw, i) => {
     let weight = tw;
     let activePool = pool;
@@ -242,6 +300,16 @@ function getAtmosphericStops(
   });
 }
 
+function findClosestColorWithFallback(pool: ColorData[], weight: number): string {
+  if (pool.length === 0) return '#888';
+  // If we have a lot of colors, we can interpolate between the two closest ones
+  // to make the sliders feel smoother, but the requirement was to use raw HEX.
+  // Instead, we ensure that as the weight moves, we pick the most appropriate one.
+  return pool.reduce((prev, curr) => {
+    return Math.abs(curr.weight - weight) < Math.abs(prev.weight - weight) ? curr : prev;
+  }).hex;
+}
+
 function applyDensity(pos: number, density: number): number {
   const p = pos / 100;
   const factor = (density - 50) / 50; // -1 to 1
@@ -263,12 +331,6 @@ function applyDensity(pos: number, density: number): number {
   return warpedP * 100;
 }
 
-function findClosestColorWithFallback(pool: ColorData[], weight: number): string {
-  if (pool.length === 0) return '#888';
-  return pool.reduce((prev, curr) => {
-    return Math.abs(curr.weight - weight) < Math.abs(prev.weight - weight) ? curr : prev;
-  }).hex;
-}
 
 function invertColor(hex: string, pool: ColorData[]): string {
   const color = pool.find(c => c.hex.toLowerCase() === hex.toLowerCase());

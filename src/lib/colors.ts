@@ -33,22 +33,40 @@ export function parseHexList(input: string): ColorData[] {
 export function groupHues(colors: ColorData[]): Map<number, ColorData[]> {
   const groups = new Map<number, ColorData[]>();
 
-  colors.forEach(color => {
-    const h = color.h ?? 0;
-    // Group hues within 30 degrees
-    let found = false;
-    for (const [hue, group] of groups.entries()) {
-      const diff = Math.min(Math.abs(h - hue), 360 - Math.abs(h - hue));
-      if (diff < 30) {
-        group.push(color);
-        found = true;
-        break;
-      }
+  // Sort colors by hue to find gaps
+  const sorted = [...colors].filter(c => c.h !== undefined).sort((a, b) => a.h! - b.h!);
+  if (sorted.length === 0) return groups;
+
+  let currentGroup: ColorData[] = [sorted[0]];
+  groups.set(sorted[0].h!, currentGroup);
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
+    const diff = curr.h! - prev.h!;
+
+    // If gap is larger than 15 degrees, start new family
+    if (diff > 15) {
+      currentGroup = [curr];
+      groups.set(curr.h!, currentGroup);
+    } else {
+      currentGroup.push(curr);
     }
-    if (!found) {
-      groups.set(h, [color]);
+  }
+
+  // Final pass: merge first and last if they wrap around 360
+  const keys = Array.from(groups.keys()).sort((a, b) => a - b);
+  if (keys.length > 1) {
+    const firstKey = keys[0];
+    const lastKey = keys[keys.length - 1];
+    const wrapDiff = (360 - lastKey) + firstKey;
+    if (wrapDiff <= 15) {
+      const lastGroup = groups.get(lastKey)!;
+      const firstGroup = groups.get(firstKey)!;
+      firstGroup.push(...lastGroup);
+      groups.delete(lastKey);
     }
-  });
+  }
 
   return groups;
 }

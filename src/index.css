@@ -259,6 +259,69 @@ button:hover {
   display: block;
 }
 
+/* Hue Grouping UI */
+.hue-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.hue-group-item {
+  border: 1px solid rgba(128,128,128,0.2);
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(128,128,128,0.05);
+}
+
+.hue-group-item.disabled {
+  opacity: 0.4;
+}
+
+.hue-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.expand-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+}
+
+.hue-strip {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(128,128,128,0.3);
+}
+
+.hue-label {
+  font-size: 0.7rem;
+  font-weight: bold;
+  flex: 1;
+}
+
+.hue-group-content {
+  padding: 8px;
+  background: rgba(0,0,0,0.1);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 /* Custom Scrollbar */
 .sidebar::-webkit-scrollbar {
   width: 4px;

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Sun, Moon, Eye, Shuffle, RotateCcw, Maximize, Copy, Check } from 'lucide-react';
+import { Sun, Moon, Eye, Shuffle, RotateCcw, Maximize, Copy, Check, ChevronDown, ChevronRight, Hash } from 'lucide-react';
 import { parseHexList, groupHues } from './lib/colors';
 import { generateGradient, PRESET_DEFAULTS } from './lib/engine';
 import type { GradientOptions, Geometry } from './lib/engine';
@@ -9,8 +9,10 @@ const DEFAULT_HEX = '#f94144, #f3722c, #f8961e, #f9844a, #f9c74f, #90be6d, #43aa
 export default function App() {
   const [hexInput, setHexInput] = useState(DEFAULT_HEX);
   const [disabledHexes, setDisabledHexes] = useState<Set<string>>(new Set());
+  const [disabledHues, setDisabledHues] = useState<Set<number>>(new Set());
   const [sidebarTheme, setSidebarTheme] = useState<'light' | 'dark'>('dark');
   const [previewBg, setPreviewBg] = useState<'white' | 'black'>('black');
+  const [expandedHueGroups, setExpandedHueGroups] = useState<Set<number>>(new Set());
 
   const [copied, setCopied] = useState(false);
   const [options, setOptions] = useState<GradientOptions>({
@@ -19,19 +21,41 @@ export default function App() {
     contrast: 100,
     density: 50,
     hueLimit: 5,
+    tonalLimit: 8,
     geometry: 'linear',
     angle: 135,
     inverted: false,
     mirrored: false,
     hueSeed: 0,
-    grain: 10,
+    grain: 15,
     softness: 50,
     customSort: 'original'
   });
 
   const allColors = useMemo(() => parseHexList(hexInput), [hexInput]);
-  const colorPool = useMemo(() => allColors.filter(c => !disabledHexes.has(c.hex)), [allColors, disabledHexes]);
-  const hueGroupsCount = useMemo(() => Array.from(groupHues(colorPool).values()).length, [colorPool]);
+
+  const hueGroupsMap = useMemo(() => groupHues(allColors), [allColors]);
+  const hueGroups = useMemo(() =>
+    Array.from(hueGroupsMap.entries()).sort((a, b) => a[0] - b[0]),
+  [hueGroupsMap]);
+
+  const colorPool = useMemo(() => {
+    return allColors.filter(c => {
+      if (disabledHexes.has(c.hex)) return false;
+      const hueId = hueGroups.find(([_, colors]) => colors.some(gc => gc.hex === c.hex))?.[0];
+      if (hueId !== undefined && disabledHues.has(hueId)) return false;
+      return true;
+    });
+  }, [allColors, disabledHexes, disabledHues, hueGroups]);
+
+  const activeHueGroupsCount = useMemo(() => {
+    const groupsInPool = new Set<number>();
+    colorPool.forEach(c => {
+      const g = hueGroups.find(([_, colors]) => colors.some(gc => gc.hex === c.hex));
+      if (g) groupsInPool.add(g[0]);
+    });
+    return groupsInPool.size;
+  }, [colorPool, hueGroups]);
 
   const { css: gradientCss, usedColors } = useMemo(() => {
     return generateGradient(colorPool, options);
@@ -46,6 +70,24 @@ export default function App() {
     });
   };
 
+  const toggleHueGroup = (hueId: number) => {
+    setDisabledHues(prev => {
+      const next = new Set(prev);
+      if (next.has(hueId)) next.delete(hueId);
+      else next.add(hueId);
+      return next;
+    });
+  };
+
+  const toggleExpand = (hueId: number) => {
+    setExpandedHueGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(hueId)) next.delete(hueId);
+      else next.add(hueId);
+      return next;
+    });
+  };
+
   const addColor = (hex: string) => {
     const clean = hexInput.trim();
     const separator = clean.endsWith(',') ? ' ' : (clean.length > 0 ? ', ' : '');
@@ -53,10 +95,7 @@ export default function App() {
   };
 
   const handleShuffle = () => {
-    setOptions(prev => ({
-      ...prev,
-      hueSeed: prev.hueSeed + 1
-    }));
+    setOptions(prev => ({ ...prev, hueSeed: prev.hueSeed + 1 }));
   };
 
   const copyToClipboard = () => {
@@ -78,10 +117,6 @@ export default function App() {
         <section className="sidebar-section">
           <div className="section-title">Paleta (Input)</div>
           <div className="control-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label>Kody HEX</label>
-              <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>{colorPool.length}</span>
-            </div>
             <textarea
               value={hexInput}
               onChange={(e) => setHexInput(e.target.value)}
@@ -91,21 +126,48 @@ export default function App() {
               <button onClick={() => addColor('#FFFFFF')}>+ Biały</button>
               <button onClick={() => addColor('#000000')}>+ Czarny</button>
             </div>
-            <div className="palette-inspector">
-              {allColors.map((c, i) => {
-                const isDisabled = disabledHexes.has(c.hex);
-                const isUsed = usedColors.has(c.hex.toLowerCase());
+
+            <div className="hue-group-list">
+              {hueGroups.map(([hueId, colors]) => {
+                const isGroupDisabled = disabledHues.has(hueId);
+                const isExpanded = expandedHueGroups.has(hueId);
+                const avgL = colors.reduce((a, b) => a + b.weight, 0) / colors.length;
+                const activeCount = colors.filter(c => !disabledHexes.has(c.hex)).length;
+
                 return (
-                  <div
-                    key={i}
-                    className={`palette-swatch ${isDisabled ? 'disabled' : ''} ${isUsed ? 'active' : ''}`}
-                    style={{ background: c.hex, color: c.weight > 500 ? '#fff' : '#000' }}
-                    onClick={() => toggleColor(c.hex)}
-                    title={isDisabled ? "Kliknij aby włączyć" : (isUsed ? "Używany w gradiencie" : "Nieużywany (poza zakresem)")}
-                  >
-                    {Math.round(c.weight / 10)}
-                    <span className="swatch-label">{c.hex.toUpperCase()} (W:{c.weight})</span>
-                    {!isDisabled && isUsed && <div className="usage-indicator" />}
+                  <div key={hueId} className={`hue-group-item ${isGroupDisabled ? 'disabled' : ''}`}>
+                    <div className="hue-group-header">
+                      <button className="expand-toggle" onClick={() => toggleExpand(hueId)}>
+                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                      <div
+                        className="hue-strip"
+                        style={{ background: colors[0].hex }}
+                        onClick={() => toggleHueGroup(hueId)}
+                      />
+                      <span className="hue-label" onClick={() => toggleHueGroup(hueId)}>
+                        Grupa {Math.round(hueId)}° ({activeCount}/{colors.length})
+                      </span>
+                    </div>
+                    {isExpanded && (
+                      <div className="hue-group-content">
+                        {colors.map((c, i) => {
+                          const isHexDisabled = disabledHexes.has(c.hex);
+                          const isUsed = usedColors.has(c.hex.toLowerCase());
+                          return (
+                            <div
+                              key={i}
+                              className={`palette-swatch ${isHexDisabled ? 'disabled' : ''} ${isUsed ? 'active' : ''}`}
+                              style={{ background: c.hex, color: c.weight > 500 ? '#fff' : '#000' }}
+                              onClick={() => toggleColor(c.hex)}
+                            >
+                              {Math.round(c.weight / 10)}
+                              {!isHexDisabled && isUsed && <div className="usage-indicator" />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -121,11 +183,7 @@ export default function App() {
               value={options.preset}
               onChange={(e) => {
                 const preset = e.target.value;
-                setOptions(prev => ({
-                  ...prev,
-                  preset,
-                  ...PRESET_DEFAULTS[preset]
-                }));
+                setOptions(prev => ({ ...prev, preset, ...PRESET_DEFAULTS[preset] }));
               }}
             >
               <option value="hologram">Hologram / Opal</option>
@@ -148,17 +206,27 @@ export default function App() {
             </select>
           </div>
 
-          {options.preset === 'custom-sort' && (
+          <div className="control-group">
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <label>Liczba Tonów (Density)</label>
+              <span>{options.tonalLimit}</span>
+            </div>
+            <input type="range" min="2" max="32" value={options.tonalLimit} onChange={(e) => setOptions({...options, tonalLimit: parseInt(e.target.value)})} />
+          </div>
+
+          {activeHueGroupsCount > 1 && (
             <div className="control-group">
-              <label>Kolejność</label>
-              <select
-                value={options.customSort}
-                onChange={(e) => setOptions({...options, customSort: e.target.value as any})}
-              >
-                <option value="original">Oryginalna (Input)</option>
-                <option value="lightness">Jasność (0-1000)</option>
-                <option value="hue">Odcień (Hue)</option>
-              </select>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <label>Limit Rodzin (Hues)</label>
+                <span>{Math.min(options.hueLimit, activeHueGroupsCount)} / {activeHueGroupsCount}</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max={Math.max(1, activeHueGroupsCount)}
+                value={options.hueLimit}
+                onChange={(e) => setOptions({...options, hueLimit: parseInt(e.target.value)})}
+              />
             </div>
           )}
 
@@ -181,29 +249,13 @@ export default function App() {
               <input type="range" min="0" max="100" value={options.contrast} onChange={(e) => setOptions({...options, contrast: parseInt(e.target.value)})} />
             </div>
           )}
-
-          {hueGroupsCount > 1 && options.preset !== 'custom-sort' && (
-            <div className="control-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <label>Limit Odcieni</label>
-                <span>{Math.min(options.hueLimit, hueGroupsCount)} / {hueGroupsCount}</span>
-              </div>
-              <input
-                type="range"
-                min="1"
-                max={Math.max(1, hueGroupsCount)}
-                value={options.hueLimit}
-                onChange={(e) => setOptions({...options, hueLimit: parseInt(e.target.value)})}
-              />
-            </div>
-          )}
         </section>
 
         <section className="sidebar-section">
           <div className="section-title">Fizyka (Fine-tune)</div>
           <div className="control-group">
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <label>Gęstość (Compression)</label>
+              <label>Ściskanie (Physics)</label>
               <span>{options.density}%</span>
             </div>
             <input type="range" min="0" max="100" value={options.density} onChange={(e) => setOptions({...options, density: parseInt(e.target.value)})} />
@@ -277,7 +329,7 @@ export default function App() {
         </section>
 
         <div style={{ marginTop: 'auto', textAlign: 'center', fontSize: '0.6rem', opacity: 0.3 }}>
-          V2.0 DESIGNER CORE &bull; OKLCH ENGINE
+          V2.1 DESIGNER CORE &bull; OKLCH ENGINE
         </div>
       </aside>
 

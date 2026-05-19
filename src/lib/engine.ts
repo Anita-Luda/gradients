@@ -9,6 +9,7 @@ export interface GradientOptions {
   contrast: number; // 0-100
   density: number; // 0-100
   hueLimit: number; // 1-10
+  tonalLimit: number; // 2-32
   geometry: Geometry;
   angle: number;
   inverted: boolean;
@@ -20,23 +21,23 @@ export interface GradientOptions {
 }
 
 export const PRESET_DEFAULTS: Record<string, Partial<GradientOptions>> = {
-  hologram: { mood: 500, contrast: 60, density: 40, softness: 80, hueLimit: 8 },
-  sunset: { mood: 500, contrast: 100, density: 50, softness: 50, hueLimit: 5 },
-  reflex: { mood: 400, contrast: 100, density: 70, softness: 30, geometry: 'radial' },
-  ripples: { mood: 500, contrast: 100, density: 60, softness: 20, geometry: 'radial' },
-  aurora: { mood: 600, contrast: 100, density: 80, softness: 90, hueLimit: 3 },
-  galaxy: { mood: 700, contrast: 100, density: 90, softness: 95, hueLimit: 4 },
-  magma: { mood: 800, contrast: 100, density: 40, softness: 40, hueLimit: 2 },
-  cyberpunk: { mood: 500, contrast: 100, density: 50, softness: 10, hueLimit: 2 },
-  chrome: { mood: 500, contrast: 100, density: 50, softness: 5, angle: 180 },
-  'liquid-metal': { mood: 500, contrast: 100, density: 50, softness: 40 },
-  ethereal: { mood: 400, contrast: 30, density: 20, softness: 100, hueLimit: 10 },
-  abyss: { mood: 900, contrast: 80, density: 60, softness: 70 },
-  'light-top': { mood: 500, contrast: 100, density: 50, softness: 80, geometry: 'linear', angle: 180 },
-  'light-side': { mood: 500, contrast: 100, density: 50, softness: 80, geometry: 'linear', angle: 90 },
-  vignette: { mood: 500, contrast: 100, density: 50, softness: 90, geometry: 'radial' },
-  'custom-sort': { mood: 500, contrast: 100, density: 50, softness: 50 },
-  default: { mood: 500, contrast: 100, density: 50, softness: 50 }
+  hologram: { mood: 500, contrast: 60, density: 40, softness: 80, hueLimit: 8, tonalLimit: 8 },
+  sunset: { mood: 500, contrast: 100, density: 50, softness: 50, hueLimit: 5, tonalLimit: 5 },
+  reflex: { mood: 400, contrast: 100, density: 70, softness: 30, geometry: 'radial', tonalLimit: 6 },
+  ripples: { mood: 500, contrast: 100, density: 60, softness: 20, geometry: 'radial', tonalLimit: 8 },
+  aurora: { mood: 600, contrast: 100, density: 80, softness: 90, hueLimit: 3, tonalLimit: 7 },
+  galaxy: { mood: 700, contrast: 100, density: 90, softness: 95, hueLimit: 4, tonalLimit: 6 },
+  magma: { mood: 800, contrast: 100, density: 40, softness: 40, hueLimit: 2, tonalLimit: 6 },
+  cyberpunk: { mood: 500, contrast: 100, density: 50, softness: 10, hueLimit: 2, tonalLimit: 6 },
+  chrome: { mood: 500, contrast: 100, density: 50, softness: 5, angle: 180, tonalLimit: 6 },
+  'liquid-metal': { mood: 500, contrast: 100, density: 50, softness: 40, tonalLimit: 6 },
+  ethereal: { mood: 400, contrast: 30, density: 20, softness: 100, hueLimit: 10, tonalLimit: 5 },
+  abyss: { mood: 900, contrast: 80, density: 60, softness: 70, tonalLimit: 6 },
+  'light-top': { mood: 500, contrast: 100, density: 50, softness: 80, geometry: 'linear', angle: 180, tonalLimit: 3 },
+  'light-side': { mood: 500, contrast: 100, density: 50, softness: 80, geometry: 'linear', angle: 90, tonalLimit: 3 },
+  vignette: { mood: 500, contrast: 100, density: 50, softness: 90, geometry: 'radial', tonalLimit: 3 },
+  'custom-sort': { mood: 500, contrast: 100, density: 50, softness: 50, tonalLimit: 12 },
+  default: { mood: 500, contrast: 100, density: 50, softness: 50, tonalLimit: 12 }
 };
 
 interface Stop {
@@ -53,96 +54,86 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   let stops: Stop[] = [];
   const usedColors = new Set<string>();
 
-  // Get active stops based on preset
+  // Determine effective color pool based on hueLimit BEFORE processing
+  const hueGroupsMap = groupHues(colors);
+  let allGroups = Array.from(hueGroupsMap.values()).sort((a, b) => (a[0].h ?? 0) - (b[0].h ?? 0));
+
+  if (options.hueSeed > 0) {
+    allGroups = seededShuffle(allGroups, options.hueSeed);
+  }
+
+  const activeGroups = allGroups.slice(0, Math.min(options.hueLimit, allGroups.length));
+  const activePool = activeGroups.flat();
+
+  // Mapping logic
   switch (options.preset) {
     case 'hologram':
-      // Dynamic Center Logic: Micro-deviations around 250 (range 100-400)
-      // We force a weight filter to ensure only light colors are used for this "pearly" effect.
-      const hWeights = [250, 300, 200, 280, 250, 220, 300, 250];
-      stops = getAtmosphericStops(colors, hWeights, options, [0, 14, 28, 42, 56, 70, 84, 100], true, { min: 0, max: 450 });
+      const hWeights = [250, 300, 200, 280, 250, 220, 300, 250].slice(0, options.tonalLimit);
+      stops = getAtmosphericStops(activePool, activeGroups, hWeights, options, [0, 14, 28, 42, 56, 70, 84, 100].slice(0, options.tonalLimit), { min: 0, max: 450 });
       break;
     case 'sunset':
-      stops = getAtmosphericStops(colors, [200, 450, 650, 850], options);
+      stops = getAtmosphericStops(activePool, activeGroups, sampleWeights([200, 450, 650, 850], options.tonalLimit), options);
       break;
     case 'reflex':
-      stops = getAtmosphericStops(colors, [0, 50, 900, 900, 850], options, [0, 3, 6, 40, 100]);
+      stops = getAtmosphericStops(activePool, activeGroups, [0, 50, 900, 900, 850], options, [0, 3, 6, 40, 100]);
       break;
     case 'ripples':
-      stops = getAtmosphericStops(colors, [900, 100, 850, 200, 800, 300, 750], options, [0, 15, 30, 45, 60, 80, 100]);
+      stops = getAtmosphericStops(activePool, activeGroups, [900, 100, 850, 200, 800, 300, 750], options, [0, 15, 30, 45, 60, 80, 100]);
       break;
     case 'aurora':
-      stops = getAtmosphericStops(colors, [950, 950, 400, 300, 500, 1000, 1000], options, [0, 60, 68, 72, 78, 85, 100]);
+      stops = getAtmosphericStops(activePool, activeGroups, [950, 950, 400, 300, 500, 1000, 1000], options, [0, 60, 68, 72, 78, 85, 100]);
       break;
     case 'galaxy':
-      stops = getAtmosphericStops(colors, [950, 950, 300, 400, 950, 950], options, [0, 65, 70, 75, 80, 100]);
+      stops = getAtmosphericStops(activePool, activeGroups, [950, 950, 300, 400, 950, 950], options, [0, 65, 70, 75, 80, 100]);
       break;
     case 'magma':
-      stops = getAtmosphericStops(colors, [900, 700, 200, 800, 950], options);
+      stops = getAtmosphericStops(activePool, activeGroups, [900, 700, 200, 800, 950], options);
       break;
     case 'cyberpunk':
-      stops = getAtmosphericStops(colors, [950, 950, 200, 200, 1000, 1000], options, [0, 46, 49, 51, 54, 100]);
+      stops = getAtmosphericStops(activePool, activeGroups, [950, 950, 200, 200, 1000, 1000], options, [0, 46, 49, 51, 54, 100]);
       break;
     case 'chrome':
-      // Liquid Chrome: classic horizon
-      stops = getAtmosphericStops(colors, [1000, 900, 100, 50, 800, 400], options, [0, 48, 49.5, 50.5, 52, 100]);
+      stops = getAtmosphericStops(activePool, activeGroups, [1000, 900, 100, 50, 800, 400], options, [0, 48, 49.5, 50.5, 52, 100]);
       break;
     case 'liquid-metal':
-      // The "cool" one that was previously chrome
-      stops = getAtmosphericStops(colors, [700, 850, 150, 900, 200, 400], options, [0, 49, 49.5, 50.5, 51, 100]);
+      stops = getAtmosphericStops(activePool, activeGroups, [700, 850, 150, 900, 200, 400], options, [0, 49, 49.5, 50.5, 51, 100]);
       break;
     case 'ethereal':
-      const eWeights = [500, 520, 480, 510];
-      stops = getAtmosphericStops(colors, eWeights, options, [0, 10, 90, 100]);
+      stops = getAtmosphericStops(activePool, activeGroups, [500, 520, 480, 510], options, [0, 10, 90, 100]);
       break;
     case 'abyss':
-      stops = getAtmosphericStops(colors, [950, 800, 900, 600, 1000], options);
+      stops = getAtmosphericStops(activePool, activeGroups, [950, 800, 900, 600, 1000], options);
       break;
     case 'light-top':
-      stops = getAtmosphericStops(colors, [100, 400, 900], options, [0, 50, 100]);
+      stops = getAtmosphericStops(activePool, activeGroups, [100, 400, 900], options, [0, 50, 100]);
       break;
     case 'light-side':
-      stops = getAtmosphericStops(colors, [50, 700, 1000], options, [0, 20, 100]);
+      stops = getAtmosphericStops(activePool, activeGroups, [50, 700, 1000], options, [0, 20, 100]);
       break;
     case 'vignette':
-      stops = getAtmosphericStops(colors, [100, 300, 950], options, [0, 40, 100]);
+      stops = getAtmosphericStops(activePool, activeGroups, [100, 300, 950], options, [0, 40, 100]);
       break;
     case 'custom-sort': {
-      let sortedPool = [...colors];
-      if (options.customSort === 'lightness') {
-        sortedPool.sort((a, b) => a.weight - b.weight);
-      } else if (options.customSort === 'hue') {
-        sortedPool.sort((a, b) => (a.h ?? 0) - (b.h ?? 0));
-      }
+      let sortedPool = [...activePool];
+      if (options.customSort === 'lightness') sortedPool.sort((a, b) => a.weight - b.weight);
+      else if (options.customSort === 'hue') sortedPool.sort((a, b) => (a.h ?? 0) - (b.h ?? 0));
 
-      const maxStops = 32;
-      if (sortedPool.length > maxStops) {
-        const step = (sortedPool.length - 1) / (maxStops - 1);
-        sortedPool = Array.from({ length: maxStops }, (_, i) => sortedPool[Math.round(i * step)]);
-      }
-
-      const weights = sortedPool.map(c => c.weight);
-      stops = getAtmosphericStops(sortedPool, weights, options, undefined, false, undefined, true);
+      const limit = Math.min(options.tonalLimit, sortedPool.length);
+      const sampled = sampleArray(sortedPool, limit);
+      stops = sampled.map((c, i) => ({ color: c.hex, pos: (i / (sampled.length - 1)) * 100 }));
       break;
     }
     default: {
-      // For Standard, if we have many colors, we want to use them all.
-      // But CSS gradients with 200 stops are slow and can look "jittery".
-      // We'll sample the pool to a max of 24 stops if it's huge, otherwise use all.
-      const maxStops = 24;
-      let targetColors = colors;
-      if (colors.length > maxStops) {
-         const step = (colors.length - 1) / (maxStops - 1);
-         targetColors = Array.from({ length: maxStops }, (_, i) => colors[Math.round(i * step)]);
-      }
-
-      const linearWeights = targetColors.map((_, i) => (i / (targetColors.length - 1)) * 1000);
-      stops = getAtmosphericStops(targetColors, linearWeights, options, undefined, false, undefined, true);
+      const limit = Math.min(options.tonalLimit, activePool.length);
+      const sampled = sampleArray(activePool, limit);
+      stops = sampled.map((c, i) => ({ color: c.hex, pos: (i / (sampled.length - 1)) * 100 }));
       break;
     }
   }
 
+  // Post-processing
   if (options.inverted) {
-    stops = stops.map(s => ({ ...s, color: invertColor(s.color, colors) }));
+    stops = stops.map(s => ({ ...s, color: invertColor(s.color, activePool) }));
   }
 
   if (options.mirrored) {
@@ -151,9 +142,7 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   }
 
   let geometry = options.geometry;
-  if (options.preset === 'ripples' || options.preset === 'reflex') {
-    geometry = 'radial';
-  }
+  if (options.preset === 'ripples' || options.preset === 'reflex') geometry = 'radial';
 
   if (options.geometry === 'mesh') {
     const meshCss = generateMesh(stops, options);
@@ -161,56 +150,54 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
     return { css: meshCss, usedColors };
   }
 
-  const finalStops = injectAnchorStops(stops, colors);
+  // Anchor stops only from active pool
+  const finalStops = injectAnchorStops(stops, activePool);
   finalStops.forEach(s => usedColors.add(s.color.toLowerCase()));
 
   const stopStr = finalStops.map((s, i) => {
     if (options.softness < 50 && (geometry === 'linear' || geometry === 'radial' || geometry === 'conic')) {
       const prev = finalStops[i - 1];
       const next = finalStops[i + 1];
-      const factor = 1 - (options.softness / 50); // 0 to 1
+      const factor = 1 - (options.softness / 50);
 
       let startPos = s.pos;
       let endPos = s.pos;
+      if (prev) startPos = s.pos - ((s.pos - prev.pos) / 2) * factor;
+      if (next) endPos = s.pos + ((next.pos - s.pos) / 2) * factor;
 
-      if (prev) {
-        const gap = s.pos - prev.pos;
-        startPos = s.pos - (gap / 2) * factor;
-      }
-      if (next) {
-        const gap = next.pos - s.pos;
-        endPos = s.pos + (gap / 2) * factor;
-      }
-
-      if (Math.abs(startPos - endPos) > 0.01) {
-        return `${s.color} ${startPos.toFixed(2)}% ${endPos.toFixed(2)}%`;
-      }
+      return `${s.color} ${startPos.toFixed(2)}% ${endPos.toFixed(2)}%`;
     }
     return `${s.color} ${s.pos.toFixed(2)}%`;
   }).join(', ');
 
   const method = 'in oklch ';
-
-  const grainLayer = options.grain > 0 ? `, url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.5'/%3E%3C/svg%3E")` : '';
-  const grainOpacity = (options.grain / 100) * 0.12;
+  const grainOpacity = (options.grain / 100) * 0.25; // Boosted to 0.25 max for visibility
+  const grainLayer = options.grain > 0 ? `, url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='${grainOpacity.toFixed(3)}'/%3E%3C/svg%3E")` : '';
 
   let baseGradient = '';
-  if (geometry === 'radial') {
-    baseGradient = `radial-gradient(${method}circle at center, ${stopStr})`;
-  } else if (geometry === 'conic') {
-    baseGradient = `conic-gradient(${method}from ${options.angle}deg, ${stopStr})`;
-  } else {
-    baseGradient = `linear-gradient(${method}${options.angle}deg, ${stopStr})`;
-  }
+  if (geometry === 'radial') baseGradient = `radial-gradient(${method}circle at center, ${stopStr})`;
+  else if (geometry === 'conic') baseGradient = `conic-gradient(${method}from ${options.angle}deg, ${stopStr})`;
+  else baseGradient = `linear-gradient(${method}${options.angle}deg, ${stopStr})`;
 
   if (options.grain > 0) {
+    // Grain on top using multiple backgrounds
     return {
-      css: `linear-gradient(rgba(0,0,0,${grainOpacity}), rgba(0,0,0,${grainOpacity}))${grainLayer}, ${baseGradient}`,
+      css: `linear-gradient(rgba(128,128,128,0.01), rgba(128,128,128,0.01))${grainLayer}, ${baseGradient}`,
       usedColors
     };
   }
 
   return { css: baseGradient, usedColors };
+}
+
+function sampleArray<T>(arr: T[], limit: number): T[] {
+  if (arr.length <= limit) return arr;
+  const step = (arr.length - 1) / (limit - 1);
+  return Array.from({ length: limit }, (_, i) => arr[Math.round(i * step)]);
+}
+
+function sampleWeights(weights: number[], limit: number): number[] {
+  return sampleArray(weights, limit);
 }
 
 function seededShuffle<T>(array: T[], seed: number): T[] {
@@ -224,159 +211,88 @@ function seededShuffle<T>(array: T[], seed: number): T[] {
 
 function getAtmosphericStops(
   pool: ColorData[],
+  hueGroups: ColorData[][],
   targetWeights: number[],
   options: GradientOptions,
   customPos?: number[],
-  forceDiversity: boolean = false,
-  weightFilter?: { min: number, max: number },
-  directMapping: boolean = false
+  weightFilter?: { min: number, max: number }
 ): Stop[] {
-  // Filter pool if range specified
   let filteredPool = pool;
   if (weightFilter) {
     filteredPool = pool.filter(c => c.weight >= weightFilter.min && c.weight <= weightFilter.max);
-    // Fallback if no colors in range: pick the closest ones
     if (filteredPool.length === 0) {
       const mid = (weightFilter.min + weightFilter.max) / 2;
-      const sorted = [...pool].sort((a, b) => Math.abs(a.weight - mid) - Math.abs(b.weight - mid));
-      filteredPool = sorted.slice(0, Math.max(3, Math.floor(pool.length / 3)));
+      filteredPool = [...pool].sort((a, b) => Math.abs(a.weight - mid) - Math.abs(b.weight - mid)).slice(0, 3);
     }
   }
 
-  const allHueGroupsMap = groupHues(filteredPool);
-  // Default sort by hue
-  let allHueGroups = Array.from(allHueGroupsMap.values()).sort((a, b) => (a[0].h ?? 0) - (b[0].h ?? 0));
-
-  // Real mixing: Shuffle the hue families based on seed
-  if (options.hueSeed > 0) {
-    allHueGroups = seededShuffle(allHueGroups, options.hueSeed);
-  }
-
-  // Limit number of hue families used
-  const limit = Math.min(options.hueLimit, allHueGroups.length);
-  const hueGroups = allHueGroups.slice(0, limit);
-
-  // Apply Mood shift
-  const shiftedWeights = targetWeights.map(w => {
-    const shift = (options.mood - 500);
-    return Math.max(0, Math.min(1000, w + shift));
-  });
-
-  // Apply Contrast/Dynamics
-  const mean = shiftedWeights.reduce((a, b) => a + b, 0) / (shiftedWeights.length || 1);
+  const mean = targetWeights.reduce((a, b) => a + b, 0) / (targetWeights.length || 1);
   const contrastFactor = options.contrast / 100;
-  const contrastedWeights = shiftedWeights.map(w => {
-    const newVal = mean + (w - mean) * contrastFactor;
-    return Math.max(0, Math.min(1000, newVal));
-  });
 
-  // Calculate used indices to track them in usedColors
-  return contrastedWeights.map((tw, i) => {
-    let weight = tw;
-    let activePool = pool;
+  return targetWeights.map((tw, i) => {
+    // Apply Mood & Contrast
+    const shifted = Math.max(0, Math.min(1000, tw + (options.mood - 500)));
+    const weight = Math.max(0, Math.min(1000, mean + (shifted - mean) * contrastFactor));
 
-    if (directMapping) {
-      // For custom-sort, we try to use the color at the same index if possible
-      const colorHex = pool[i % pool.length].hex;
-      let pos = customPos ? customPos[i] : (i / (contrastedWeights.length - 1)) * 100;
-      return { color: colorHex, pos: applyDensity(pos, options.density) };
-    }
-
+    let activePool = filteredPool;
     if (hueGroups.length > 0) {
-      // If shuffle > 0, we can also shuffle the assignment of groups to stops
       let groupIdx = i % hueGroups.length;
       if (options.hueSeed > 0) {
-        // Use a more stable but randomized indexing
         const seed = options.hueSeed + i * 1.5;
         groupIdx = Math.floor(Math.abs(Math.sin(seed)) * hueGroups.length);
       }
       activePool = hueGroups[groupIdx];
     }
 
-    const colorHex = findClosestColorWithFallback(activePool, weight);
-
-    let pos = customPos ? customPos[i] : (i / (contrastedWeights.length - 1)) * 100;
+    const colorHex = findClosestColor(activePool, weight);
+    let pos = customPos ? customPos[i] : (i / (targetWeights.length - 1)) * 100;
     return { color: colorHex, pos: applyDensity(pos, options.density) };
   });
 }
 
-function findClosestColorWithFallback(pool: ColorData[], weight: number): string {
+function findClosestColor(pool: ColorData[], weight: number): string {
   if (pool.length === 0) return '#888';
-  // If we have a lot of colors, we can interpolate between the two closest ones
-  // to make the sliders feel smoother, but the requirement was to use raw HEX.
-  // Instead, we ensure that as the weight moves, we pick the most appropriate one.
-  return pool.reduce((prev, curr) => {
-    return Math.abs(curr.weight - weight) < Math.abs(prev.weight - weight) ? curr : prev;
-  }).hex;
+  return pool.reduce((prev, curr) => Math.abs(curr.weight - weight) < Math.abs(prev.weight - weight) ? curr : prev).hex;
 }
 
 function applyDensity(pos: number, density: number): number {
   const p = pos / 100;
-  const factor = (density - 50) / 50; // -1 to 1
+  const factor = (density - 50) / 50;
   let warpedP = p;
   if (factor > 0) {
-    // Squeeze toward center (0.5)
-    const strength = 1 + factor * 5;
-    warpedP = p < 0.5
-      ? 0.5 * Math.pow(p / 0.5, strength)
-      : 1 - 0.5 * Math.pow((1 - p) / 0.5, strength);
+    const s = 1 + factor * 5;
+    warpedP = p < 0.5 ? 0.5 * Math.pow(p / 0.5, s) : 1 - 0.5 * Math.pow((1 - p) / 0.5, s);
   } else if (factor < 0) {
-    // Push toward edges
-    const f = Math.abs(factor);
-    const strength = 1 + f * 5;
-    warpedP = p < 0.5
-      ? 0.5 * (1 - Math.pow(1 - (p / 0.5), strength))
-      : 0.5 + 0.5 * Math.pow((p - 0.5) / 0.5, strength);
+    const s = 1 + Math.abs(factor) * 5;
+    warpedP = p < 0.5 ? 0.5 * (1 - Math.pow(1 - (p / 0.5), s)) : 0.5 + 0.5 * Math.pow((p - 0.5) / 0.5, s);
   }
   return warpedP * 100;
 }
 
-
 function invertColor(hex: string, pool: ColorData[]): string {
   const color = pool.find(c => c.hex.toLowerCase() === hex.toLowerCase());
-  let currentWeight: number;
-  if (color) {
-    currentWeight = color.weight;
-  } else if (hex.toLowerCase() === '#ffffff') {
-    currentWeight = 0;
-  } else if (hex.toLowerCase() === '#000000') {
-    currentWeight = 1000;
-  } else {
-    return hex;
-  }
-
-  const targetWeight = 1000 - currentWeight;
-  return findClosestColorWithFallback(pool, targetWeight);
+  const targetWeight = 1000 - (color ? color.weight : 500);
+  return findClosestColor(pool, targetWeight);
 }
 
 function generateMesh(stops: Stop[], options: GradientOptions): string {
   const seed = options.hueSeed;
   const shuffledStops = seededShuffle(stops, seed);
   const bg = shuffledStops[0]?.color || '#000';
-
-  // Softness affects the radius and the sharpness of radial drops
-  const softnessFactor = (options.softness / 50); // 0 to 2, 1 is default
+  const softnessFactor = (options.softness / 50);
 
   const layers = shuffledStops.slice(1).map((s, i) => {
     const x = 10 + (Math.abs(Math.sin(seed + i * 13)) * 80);
     const y = 10 + (Math.abs(Math.cos(seed + i * 17)) * 80);
     const r = (30 + (Math.abs(Math.sin(seed + i * 23)) * 50)) * softnessFactor;
-
-    // Low softness = sharper edges (harder radial drop)
     const edge = options.softness < 20 ? '80%' : '100%';
-
     return `radial-gradient(in oklch circle at ${x.toFixed(1)}% ${y.toFixed(1)}%, ${s.color} 0%, transparent ${edge})`;
   });
 
-  const baseMesh = `${layers.join(', ')}, ${bg}`;
+  const grainOpacity = (options.grain / 100) * 0.25;
+  const grainLayer = options.grain > 0 ? `linear-gradient(rgba(128,128,128,0.01), rgba(128,128,128,0.01)), url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='${grainOpacity.toFixed(3)}'/%3E%3C/svg%3E"), ` : '';
 
-  if (options.grain > 0) {
-    const grainLayer = `, url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.5'/%3E%3C/svg%3E")`;
-    const grainOpacity = (options.grain / 100) * 0.12;
-    return `linear-gradient(rgba(0,0,0,${grainOpacity}), rgba(0,0,0,${grainOpacity}))${grainLayer}, ${baseMesh}`;
-  }
-
-  return baseMesh;
+  return `${grainLayer}${layers.join(', ')}, ${bg}`;
 }
 
 function injectAnchorStops(stops: Stop[], pool: ColorData[]): Stop[] {
@@ -385,36 +301,21 @@ function injectAnchorStops(stops: Stop[], pool: ColorData[]): Stop[] {
   for (let i = 0; i < stops.length; i++) {
     result.push(stops[i]);
     if (i < stops.length - 1) {
-      const current = stops[i];
-      const next = stops[i+1];
+      const c = stops[i], n = stops[i+1];
+      if (n.pos - c.pos < 2) continue;
 
-      // Only inject if there is space
-      if (next.pos - current.pos < 2) continue;
-
-      const c1 = pool.find(c => c.hex.toLowerCase() === current.color.toLowerCase());
-      const c2 = pool.find(c => c.hex.toLowerCase() === next.color.toLowerCase());
+      const c1 = pool.find(x => x.hex.toLowerCase() === c.color.toLowerCase());
+      const c2 = pool.find(x => x.hex.toLowerCase() === n.color.toLowerCase());
       if (c1 && c2 && c1.h !== undefined && c2.h !== undefined) {
-        const h1 = c1.h;
-        const h2 = c2.h;
-        const hDiff = Math.min(Math.abs(h1 - h2), 360 - Math.abs(h1 - h2));
+        const hDiff = Math.min(Math.abs(c1.h - c2.h), 360 - Math.abs(c1.h - c2.h));
         if (hDiff > 90) {
-          const bridgePoints = hDiff > 180 ? [0.33, 0.66] : [0.5];
-
-          bridgePoints.forEach(ratio => {
-            const targetH = (h1 + (h2 > h1 ? hDiff * ratio : -hDiff * ratio) + 360) % 360;
-            const targetW = (c1.weight ?? 500) + ((c2.weight ?? 500) - (c1.weight ?? 500)) * ratio;
-
-            const bridge = pool.reduce((prev, curr) => {
-               if (curr.h === undefined) return prev;
-               const d1 = getScore(prev, targetH, targetW);
-               const d2 = getScore(curr, targetH, targetW);
-               return d2 < d1 ? curr : prev;
-            });
-
-            if (bridge && bridge.hex !== c1.hex && bridge.hex !== c2.hex) {
-              result.push({ color: bridge.hex, pos: current.pos + (next.pos - current.pos) * ratio });
-            }
-          });
+          const ratio = 0.5;
+          const targetH = (c1.h + (c2.h > c1.h ? hDiff * ratio : -hDiff * ratio) + 360) % 360;
+          const targetW = c1.weight + (c2.weight - c1.weight) * ratio;
+          const bridge = pool.reduce((p, curr) => getScore(curr, targetH, targetW) < getScore(p, targetH, targetW) ? curr : p);
+          if (bridge && bridge.hex !== c1.hex && bridge.hex !== c2.hex) {
+            result.push({ color: bridge.hex, pos: c.pos + (n.pos - c.pos) * ratio });
+          }
         }
       }
     }
@@ -422,9 +323,8 @@ function injectAnchorStops(stops: Stop[], pool: ColorData[]): Stop[] {
   return result;
 }
 
-function getScore(c: ColorData, targetH: number, targetW: number): number {
+function getScore(c: ColorData, tH: number, tW: number): number {
   if (c.h === undefined) return Infinity;
-  const hDiff = Math.min(Math.abs(c.h - targetH), 360 - Math.abs(c.h - targetH));
-  const wDiff = Math.abs(c.weight - targetW) / 1000 * 360;
-  return hDiff + wDiff;
+  const hD = Math.min(Math.abs(c.h - tH), 360 - Math.abs(c.h - tH));
+  return hD + Math.abs(c.weight - tW) / 1000 * 360;
 }

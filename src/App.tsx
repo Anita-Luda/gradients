@@ -183,7 +183,12 @@ export default function App() {
               value={options.preset}
               onChange={(e) => {
                 const preset = e.target.value;
-                setOptions(prev => ({ ...prev, preset, ...PRESET_DEFAULTS[preset] }));
+                const defaults = PRESET_DEFAULTS[preset] || {};
+                setOptions(prev => ({
+                  ...prev,
+                  ...defaults,
+                  preset
+                }));
               }}
             >
               <option value="hologram">Hologram / Opal</option>
@@ -230,25 +235,21 @@ export default function App() {
             </div>
           )}
 
-          {options.preset !== 'custom-sort' && options.preset !== 'default' && (
-            <div className="control-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <label>Jasność (Mood)</label>
-                <span>{options.mood}</span>
-              </div>
-              <input type="range" min="0" max="1000" value={options.mood} onChange={(e) => setOptions({...options, mood: parseInt(e.target.value)})} />
+          <div className="control-group">
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <label>Jasność (Mood)</label>
+              <span>{options.mood}</span>
             </div>
-          )}
+            <input type="range" min="0" max="1000" value={options.mood} onChange={(e) => setOptions({...options, mood: parseInt(e.target.value)})} />
+          </div>
 
-          {options.preset !== 'custom-sort' && (
-            <div className="control-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <label>Dynamika / Kontrast</label>
-                <span>{options.contrast}%</span>
-              </div>
-              <input type="range" min="0" max="100" value={options.contrast} onChange={(e) => setOptions({...options, contrast: parseInt(e.target.value)})} />
+          <div className="control-group">
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <label>Dynamika / Kontrast</label>
+              <span>{options.contrast}%</span>
             </div>
-          )}
+            <input type="range" min="0" max="100" value={options.contrast} onChange={(e) => setOptions({...options, contrast: parseInt(e.target.value)})} />
+          </div>
         </section>
 
         <section className="sidebar-section">

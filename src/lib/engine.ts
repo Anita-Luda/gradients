@@ -21,23 +21,23 @@ export interface GradientOptions {
 }
 
 export const PRESET_DEFAULTS: Record<string, Partial<GradientOptions>> = {
-  hologram: { mood: 500, contrast: 60, density: 40, softness: 80, hueLimit: 8, tonalLimit: 8 },
-  sunset: { mood: 500, contrast: 100, density: 50, softness: 50, hueLimit: 5, tonalLimit: 5 },
+  hologram: { mood: 400, contrast: 60, density: 40, softness: 80, hueLimit: 8, tonalLimit: 8, geometry: 'linear' },
+  sunset: { mood: 500, contrast: 100, density: 50, softness: 50, hueLimit: 5, tonalLimit: 5, geometry: 'linear' },
   reflex: { mood: 400, contrast: 100, density: 70, softness: 30, geometry: 'radial', tonalLimit: 6 },
   ripples: { mood: 500, contrast: 100, density: 60, softness: 20, geometry: 'radial', tonalLimit: 8 },
-  aurora: { mood: 600, contrast: 100, density: 80, softness: 90, hueLimit: 3, tonalLimit: 7 },
-  galaxy: { mood: 700, contrast: 100, density: 90, softness: 95, hueLimit: 4, tonalLimit: 6 },
-  magma: { mood: 800, contrast: 100, density: 40, softness: 40, hueLimit: 2, tonalLimit: 6 },
-  cyberpunk: { mood: 500, contrast: 100, density: 50, softness: 10, hueLimit: 2, tonalLimit: 6 },
-  chrome: { mood: 500, contrast: 100, density: 50, softness: 5, angle: 180, tonalLimit: 6 },
-  'liquid-metal': { mood: 500, contrast: 100, density: 50, softness: 40, tonalLimit: 6 },
-  ethereal: { mood: 400, contrast: 30, density: 20, softness: 100, hueLimit: 10, tonalLimit: 5 },
-  abyss: { mood: 900, contrast: 80, density: 60, softness: 70, tonalLimit: 6 },
+  aurora: { mood: 600, contrast: 100, density: 80, softness: 90, hueLimit: 3, tonalLimit: 7, geometry: 'linear' },
+  galaxy: { mood: 700, contrast: 100, density: 90, softness: 95, hueLimit: 4, tonalLimit: 6, geometry: 'linear' },
+  magma: { mood: 800, contrast: 100, density: 40, softness: 40, hueLimit: 2, tonalLimit: 6, geometry: 'linear' },
+  cyberpunk: { mood: 500, contrast: 100, density: 50, softness: 10, hueLimit: 2, tonalLimit: 6, geometry: 'linear' },
+  chrome: { mood: 500, contrast: 100, density: 50, softness: 5, angle: 180, tonalLimit: 6, geometry: 'linear' },
+  'liquid-metal': { mood: 500, contrast: 100, density: 50, softness: 40, tonalLimit: 6, geometry: 'linear' },
+  ethereal: { mood: 400, contrast: 30, density: 20, softness: 100, hueLimit: 10, tonalLimit: 5, geometry: 'linear' },
+  abyss: { mood: 900, contrast: 80, density: 60, softness: 70, tonalLimit: 6, geometry: 'linear' },
   'light-top': { mood: 500, contrast: 100, density: 50, softness: 80, geometry: 'linear', angle: 180, tonalLimit: 3 },
   'light-side': { mood: 500, contrast: 100, density: 50, softness: 80, geometry: 'linear', angle: 90, tonalLimit: 3 },
   vignette: { mood: 500, contrast: 100, density: 50, softness: 90, geometry: 'radial', tonalLimit: 3 },
-  'custom-sort': { mood: 500, contrast: 100, density: 50, softness: 50, tonalLimit: 12 },
-  default: { mood: 500, contrast: 100, density: 50, softness: 50, tonalLimit: 12 }
+  'custom-sort': { mood: 500, contrast: 100, density: 50, softness: 50, tonalLimit: 12, geometry: 'linear' },
+  default: { mood: 500, contrast: 100, density: 50, softness: 50, tonalLimit: 12, geometry: 'linear' }
 };
 
 interface Stop {
@@ -69,7 +69,7 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
   switch (options.preset) {
     case 'hologram':
       const hWeights = [250, 300, 200, 280, 250, 220, 300, 250].slice(0, options.tonalLimit);
-      stops = getAtmosphericStops(activePool, activeGroups, hWeights, options, [0, 14, 28, 42, 56, 70, 84, 100].slice(0, options.tonalLimit), { min: 0, max: 450 });
+      stops = getAtmosphericStops(activePool, activeGroups, hWeights, options, [0, 14, 28, 42, 56, 70, 84, 100].slice(0, options.tonalLimit), { min: 0, max: 500 });
       break;
     case 'sunset':
       stops = getAtmosphericStops(activePool, activeGroups, sampleWeights([200, 450, 650, 850], options.tonalLimit), options);
@@ -117,6 +117,7 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
       let sortedPool = [...activePool];
       if (options.customSort === 'lightness') sortedPool.sort((a, b) => a.weight - b.weight);
       else if (options.customSort === 'hue') sortedPool.sort((a, b) => (a.h ?? 0) - (b.h ?? 0));
+      else sortedPool.sort((a, b) => a.index - b.index);
 
       const limit = Math.min(options.tonalLimit, sortedPool.length);
       const sampled = sampleArray(sortedPool, limit);
@@ -126,7 +127,7 @@ export function generateGradient(colors: ColorData[], options: GradientOptions):
     default: {
       const limit = Math.min(options.tonalLimit, activePool.length);
       const sampled = sampleArray(activePool, limit);
-      stops = sampled.map((c, i) => ({ color: c.hex, pos: (i / (sampled.length - 1)) * 100 }));
+      stops = getAtmosphericStops(sampled, [], sampled.map(c => c.weight), options);
       break;
     }
   }
@@ -221,8 +222,12 @@ function getAtmosphericStops(
   if (weightFilter) {
     filteredPool = pool.filter(c => c.weight >= weightFilter.min && c.weight <= weightFilter.max);
     if (filteredPool.length === 0) {
-      const mid = (weightFilter.min + weightFilter.max) / 2;
-      filteredPool = [...pool].sort((a, b) => Math.abs(a.weight - mid) - Math.abs(b.weight - mid)).slice(0, 3);
+      // If nothing in range, take the absolute lightest (or whatever is closest to range)
+      const targetLimit = weightFilter.max;
+      filteredPool = [...pool].filter(c => c.weight <= targetLimit + 100);
+      if (filteredPool.length === 0) {
+        filteredPool = [...pool].sort((a, b) => a.weight - b.weight).slice(0, 3);
+      }
     }
   }
 

@@ -6,13 +6,14 @@ export interface ColorData {
   c: number; // 0 to 0.4 approx
   h: number | undefined; // 0 to 360
   weight: number; // 0 (brightest/white) to 1000 (darkest/black)
+  index: number; // Original input order
 }
 
 export function parseHexList(input: string): ColorData[] {
   const hexRegex = /#([0-9a-f]{3,6})/gi;
   const matches = input.match(hexRegex) || [];
 
-  return matches.map(hex => {
+  return matches.map((hex, i) => {
     const color = oklch(hex);
     if (!color) return null;
 
@@ -25,7 +26,8 @@ export function parseHexList(input: string): ColorData[] {
       l: color.l,
       c: color.c,
       h: color.h,
-      weight
+      weight,
+      index: i
     };
   }).filter((c): c is ColorData => c !== null);
 }
